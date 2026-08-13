@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, Button, List, Popconfirm, Select, Space, Typography, message, Tag } from 'antd';
+import { Upload, Button, List, Popconfirm, Select, Space, Typography, message, Tag, Progress } from 'antd';
 import { UploadOutlined, DeleteOutlined, ReloadOutlined, InboxOutlined } from '@ant-design/icons';
 import type { DocumentMeta } from '../types';
 import { uploadDocument, deleteDocument } from '../api';
@@ -16,17 +16,21 @@ interface Props {
 
 const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange, onRefresh }) => {
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const handleUpload = async (file: File) => {
     setUploading(true);
+    setProgress(0);
     try {
-      await uploadDocument(file);
+      await uploadDocument(file, setProgress);
       message.success(`${file.name} 上传成功`);
       onRefresh();
-    } catch {
-      message.error(`上传失败: ${file.name}`);
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message;
+      message.error(msg || `上传失败: ${file.name}`);
     } finally {
       setUploading(false);
+      setProgress(0);
     }
     return false; // prevent default upload
   };
@@ -73,6 +77,15 @@ const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange
         <p className="ant-upload-text">点击或拖拽文件上传</p>
         <p className="ant-upload-hint">支持 PDF, DOCX, TXT</p>
       </Dragger>
+
+      {uploading && (
+        <Progress
+          percent={progress >= 100 ? 99 : progress}
+          status="active"
+          format={() => (progress >= 100 ? '正在解析文档并生成向量…' : `上传中 ${progress}%`)}
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
       <div style={{ marginBottom: 8 }}>
         <Button icon={<ReloadOutlined />} onClick={onRefresh} size="small">刷新列表</Button>

@@ -1,5 +1,6 @@
 package com.rag.eval.service;
 
+import com.rag.eval.exception.DuplicateDocumentException;
 import com.rag.eval.model.DocumentMeta;
 import com.rag.eval.repository.DocumentMetaRepo;
 import com.rag.eval.repository.VectorChunkRepo;
@@ -30,6 +31,9 @@ public class DocumentService {
 
     public DocumentMeta ingest(MultipartFile file) throws Exception {
         String fileName = file.getOriginalFilename();
+        if (docRepo.findByFileName(fileName).isPresent()) {
+            throw new DuplicateDocumentException("文件已存在: " + fileName);
+        }
         String text = parser.parse(file.getInputStream());
         String sourceType = "digital";
         List<ChunkData> chunks = parser.splitAndEnrich(text, fileName, sourceType);

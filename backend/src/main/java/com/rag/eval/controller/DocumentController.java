@@ -1,7 +1,9 @@
 package com.rag.eval.controller;
 
+import com.rag.eval.exception.DuplicateDocumentException;
 import com.rag.eval.model.DocumentMeta;
 import com.rag.eval.service.DocumentService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -34,5 +36,10 @@ public class DocumentController {
     public ResponseEntity<Map<String, String>> delete(@PathVariable Long id) {
         documentService.deleteById(id);
         return ResponseEntity.ok(Map.of("message", "Deleted"));
+    }
+
+    @ExceptionHandler(DuplicateDocumentException.class)
+    public ResponseEntity<Map<String, String>> handleDuplicate(DuplicateDocumentException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", e.getMessage()));
     }
 }

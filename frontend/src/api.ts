@@ -3,10 +3,19 @@ import type { DocumentMeta, ChatResponse, ChatMessage } from './types';
 
 const api = axios.create({ baseURL: '/api' });
 
-export async function uploadDocument(file: File): Promise<DocumentMeta> {
+export async function uploadDocument(
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<DocumentMeta> {
   const form = new FormData();
   form.append('file', file);
-  const { data } = await api.post('/documents/upload', form);
+  const { data } = await api.post('/documents/upload', form, {
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    },
+  });
   return data;
 }
 
