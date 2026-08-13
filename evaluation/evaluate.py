@@ -19,13 +19,14 @@ def load_questions(path="questions.json"):
         return json.load(f)
 
 
-def ask_question(question, session_id):
+def ask_question(question, session_id, mode):
     """Send a chat request and measure latency."""
     start = time.time()
     resp = requests.post(f"{BASE_URL}/api/chat", json={
         "question": question,
         "sessionId": session_id,
-    }, timeout=30)
+        "mode": mode,
+    }, timeout=60)
     latency_ms = (time.time() - start) * 1000
     return resp.json(), latency_ms
 
@@ -107,7 +108,7 @@ def run_evaluation(mode_label, questions):
     for q in questions:
         session_id = f"eval-{mode_label}-{q['id']}"
         try:
-            answer, latency_ms = ask_question(q["question"], session_id)
+            answer, latency_ms = ask_question(q["question"], session_id, mode_label)
 
             faithfulness = evaluate_faithfulness(answer, answer.get("sources", []), q)
             context_precision = evaluate_context_precision(answer.get("sources", []), q)

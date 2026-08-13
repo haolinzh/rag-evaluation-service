@@ -1,14 +1,19 @@
 import axios from 'axios';
-import type { DocumentMeta, ChatResponse, ChatMessage, OpsReport } from './types';
+import type { DocumentMeta, ChatResponse, ChatMessage, OpsReport, ChunkConfig, ChunkPreview, RequestLog } from './types';
 
 const api = axios.create({ baseURL: '/api' });
 
 export async function uploadDocument(
   file: File,
+  config: ChunkConfig,
   onProgress?: (percent: number) => void
 ): Promise<DocumentMeta> {
   const form = new FormData();
   form.append('file', file);
+  form.append('splitMode', config.splitMode);
+  form.append('chunkSize', String(config.chunkSize));
+  form.append('delimiter', config.delimiter);
+  form.append('overlap', String(config.overlap));
   const { data } = await api.post('/documents/upload', form, {
     onUploadProgress: (e) => {
       if (onProgress && e.total) {
@@ -28,6 +33,11 @@ export async function deleteDocument(id: number): Promise<void> {
   await api.delete(`/documents/${id}`);
 }
 
+export async function getDocumentChunks(id: number): Promise<ChunkPreview[]> {
+  const { data } = await api.get(`/documents/${id}/chunks`);
+  return data;
+}
+
 export async function askQuestion(question: string, sessionId: string, mode: string): Promise<ChatResponse> {
   const { data } = await api.post('/chat', { question, sessionId, mode });
   return data;
@@ -38,6 +48,10 @@ export async function getChatHistory(sessionId: string): Promise<ChatMessage[]> 
   return data;
 }
 
+export async function deleteChatHistory(sessionId: string): Promise<void> {
+  await api.delete(`/chat/history/${sessionId}`);
+}
+
 export async function fetchReport(): Promise<Blob> {
   const { data } = await api.get('/report/csv', { responseType: 'blob' });
   return data;
@@ -46,4 +60,17 @@ export async function fetchReport(): Promise<Blob> {
 export async function fetchMetricsSummary(): Promise<OpsReport> {
   const { data } = await api.get('/report/summary');
   return data;
+}
+
+export async function clearCache(): Promise<void> {
+  await api.post('/cache/clear');
+}
+
+export async function fetchLogs(limit = 100): Promise<RequestLog[]> {
+  const { data } = await api.get('/logs', { params: { limit } });
+  return data;
+}
+
+export async function clearLogs(): Promise<void> {
+  await api.delete('/logs');
 }

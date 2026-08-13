@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Input, Button, Typography, Space, Tag, Spin } from 'antd';
-import { SendOutlined, UserOutlined, RobotOutlined, PlusOutlined } from '@ant-design/icons';
-import { askQuestion, getChatHistory } from '../api';
+import { SendOutlined, UserOutlined, RobotOutlined, PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { askQuestion, getChatHistory, deleteChatHistory } from '../api';
 import type { ChatResponse, ChatMessage } from '../types';
 
 const { TextArea } = Input;
@@ -84,6 +84,8 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const active = sessions.find(s => s.id === activeId) ?? sessions[0];
@@ -126,6 +128,32 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
     const s = newSession();
     setSessions(prev => [s, ...prev]);
     setActiveId(s.id);
+  };
+
+  const handleDelete = (id: string) => {
+    const remaining = sessions.filter(s => s.id !== id);
+    const next = remaining.length > 0 ? remaining : [newSession()];
+    setSessions(next);
+    if (activeId === id) {
+      setActiveId(next[0].id);
+    }
+    deleteChatHistory(id).catch(() => {});
+  };
+
+  const startRename = (s: Session) => {
+    setEditingId(s.id);
+    setEditingTitle(s.title);
+  };
+
+  const commitRename = () => {
+    if (editingId) {
+      const t = editingTitle.trim();
+      if (t) {
+        updateSession(editingId, s => ({ ...s, title: t }));
+      }
+    }
+    setEditingId(null);
+    setEditingTitle('');
   };
 
   const handleSend = async () => {
@@ -182,10 +210,12 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
         </Button>
         {sessions.map(s => {
           const isActive = s.id === activeId;
+          const isHover = s.id === hoverId || isActive;
+          const isEditing = editingId === s.id;
           return (
             <div
               key={s.id}
-              onClick={() => setActiveId(s.id)}
+              onClick={() => { if (!isEditing) setActiveId(s.id); }}
               onMouseEnter={() => setHoverId(s.id)}
               onMouseLeave={() => setHoverId(null)}
               style={{
@@ -194,14 +224,46 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
                 cursor: 'pointer',
                 marginBottom: 4,
                 fontSize: 14,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                background: isActive ? '#e6f4ff' : (s.id === hoverId ? '#f5f5f5' : 'transparent'),
+                display: 'flex',
+                alignItems: 'center',
+                background: isActive ? '#e6f4ff' : (isHover ? '#f5f5f5' : 'transparent'),
                 color: isActive ? '#1677ff' : 'rgba(0,0,0,0.85)',
               }}
             >
-              {s.title}
+              {isEditing ? (
+                <Input
+                  size="small"
+                  value={editingTitle}
+                  autoFocus
+                  onChange={e => setEditingTitle(e.target.value)}
+                  onPressEnter={commitRename}
+                  onBlur={commitRename}
+                  onClick={e => e.stopPropagation()}
+                />
+              ) : (
+                <>
+                  <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {s.title}
+                  </span>
+                  {isHover && (
+                    <Space size={2} style={{ marginLeft: 8 }} onClick={e => e.stopPropagation()}>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={() => startRename(s)}
+                      />
+                      <Button
+                        type="text"
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => handleDelete(s.id)}
+                      />
+                    </Space>
+                  )}
+                </>
+              )}
             </div>
           );
         })}
@@ -223,10 +285,11 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
               display: 'flex', flexDirection: 'column',
               alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
             }}>
-              <Space align="start">
+              <Space align="start" style={{ maxWidth: '90%' }}>
                 {msg.role === 'assistant' && <RobotOutlined style={{ color: '#1677ff' }} />}
                 <div style={{
-                  maxWidth: '90%',
+                  maxWidth: '100%',
+                  minWidth: 0,
                   padding: '10px 14px',
                   borderRadius: 12,
                   background: msg.role === 'user' ? '#1677ff' : '#f0f0f0',

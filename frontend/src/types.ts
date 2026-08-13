@@ -4,6 +4,25 @@ export interface DocumentMeta {
   fileSize: number;
   chunkCount: number;
   createdAt: string;
+  updatedAt?: string;
+  splitMode?: string;
+  chunkSize?: number;
+  overlap?: number;
+  delimiter?: string;
+}
+
+export interface ChunkPreview {
+  chunkIndex: number;
+  chapter: string | null;
+  section: string | null;
+  snippet: string;
+}
+
+export interface ChunkConfig {
+  splitMode: 'size' | 'delimiter';
+  chunkSize: number;
+  delimiter: string;
+  overlap: number;
 }
 
 export interface Source {
@@ -38,4 +57,29 @@ export interface OpsReport {
   totalTokens: number;
   cacheHitRate: number;
   refusalRate: number;
+}
+
+export interface RequestLog {
+  id: number;
+  requestId: string;
+  sessionId: string;
+  createdAt: string;
+  question: string;
+  answer: string | null;
+  model: string;
+  retrievalMode: string;
+  hitDocuments: string;
+  responseTimeMs: number;
+  llmCallCount: number;
+  cacheHit: boolean;
+  refusal: boolean;
+  refusalReason: string | null;
+  retrievalLatencyMs: number;
+  generationLatencyMs: number;
+  promptTokens: number;
+  completionTokens: number;
+  chunksRetrieved: number;
+  maxChunkScore: number;
+  piiRedactions: number;
+  status: string;
 }

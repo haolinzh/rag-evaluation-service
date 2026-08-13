@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Statistic, Row, Col, Button, Typography, message } from 'antd';
-import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
-import { fetchReport, fetchMetricsSummary } from '../api';
+import { DownloadOutlined, ReloadOutlined, ClearOutlined } from '@ant-design/icons';
+import { fetchReport, fetchMetricsSummary, clearCache } from '../api';
 import type { OpsReport } from '../types';
 
 const MetricsPanel: React.FC = () => {
@@ -43,6 +43,15 @@ const MetricsPanel: React.FC = () => {
       message.success('报告下载成功');
     } catch {
       message.error('下载失败，请稍后重试');
+    }
+  };
+
+  const handleClearCache = async () => {
+    try {
+      await clearCache();
+      message.success('缓存已清空');
+    } catch {
+      message.error('清空缓存失败');
     }
   };
 
@@ -97,8 +106,11 @@ const MetricsPanel: React.FC = () => {
         <Button icon={<ReloadOutlined />} size="small" style={{ marginRight: 8 }} onClick={refresh}>
           刷新
         </Button>
-        <Button type="primary" icon={<DownloadOutlined />} onClick={handleDownload} size="small">
+        <Button icon={<DownloadOutlined />} onClick={handleDownload} size="small">
           下载 CSV 报告
+        </Button>
+        <Button icon={<ClearOutlined />} onClick={handleClearCache} size="small" style={{ marginLeft: 8 }}>
+          清空缓存
         </Button>
       </div>
     </div>

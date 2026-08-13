@@ -1,6 +1,8 @@
 package com.rag.eval.controller;
 
 import com.rag.eval.exception.DuplicateDocumentException;
+import com.rag.eval.model.ChunkConfig;
+import com.rag.eval.model.ChunkPreview;
 import com.rag.eval.model.DocumentMeta;
 import com.rag.eval.service.DocumentService;
 import org.springframework.http.HttpStatus;
@@ -23,8 +25,14 @@ public class DocumentController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<DocumentMeta> upload(@RequestParam("file") MultipartFile file) throws Exception {
-        return ResponseEntity.ok(documentService.ingest(file));
+    public ResponseEntity<DocumentMeta> upload(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "splitMode", defaultValue = ChunkConfig.MODE_SIZE) String splitMode,
+            @RequestParam(value = "chunkSize", defaultValue = "500") int chunkSize,
+            @RequestParam(value = "delimiter", defaultValue = "") String delimiter,
+            @RequestParam(value = "overlap", defaultValue = "50") int overlap) throws Exception {
+        ChunkConfig config = new ChunkConfig(splitMode, chunkSize, delimiter, overlap);
+        return ResponseEntity.ok(documentService.ingest(file, config));
     }
 
     @GetMapping
@@ -36,6 +44,11 @@ public class DocumentController {
     public ResponseEntity<Map<String, String>> delete(@PathVariable Long id) {
         documentService.deleteById(id);
         return ResponseEntity.ok(Map.of("message", "Deleted"));
+    }
+
+    @GetMapping("/{id}/chunks")
+    public ResponseEntity<List<ChunkPreview>> chunks(@PathVariable Long id) {
+        return ResponseEntity.ok(documentService.getChunkPreviews(id));
     }
 
     @ExceptionHandler(DuplicateDocumentException.class)

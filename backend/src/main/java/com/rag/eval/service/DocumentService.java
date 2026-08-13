@@ -1,6 +1,8 @@
 package com.rag.eval.service;
 
 import com.rag.eval.exception.DuplicateDocumentException;
+import com.rag.eval.model.ChunkConfig;
+import com.rag.eval.model.ChunkPreview;
 import com.rag.eval.model.DocumentMeta;
 import com.rag.eval.repository.DocumentMetaRepo;
 import com.rag.eval.repository.VectorChunkRepo;
@@ -32,13 +34,17 @@ public class DocumentService {
     }
 
     public DocumentMeta ingest(MultipartFile file) throws Exception {
+        return ingest(file, ChunkConfig.defaults());
+    }
+
+    public DocumentMeta ingest(MultipartFile file, ChunkConfig config) throws Exception {
         String fileName = file.getOriginalFilename();
         if (docRepo.findByFileName(fileName).isPresent()) {
             throw new DuplicateDocumentException("文件已存在: " + fileName);
         }
         String text = parser.parse(file.getInputStream());
         String sourceType = "digital";
-        List<ChunkData> chunks = parser.splitAndEnrich(text, fileName, sourceType);
+        List<ChunkData> chunks = parser.splitAndEnrich(text, fileName, sourceType, config);
         for (int i = 0; i < chunks.size(); i++) {
             chunks.get(i).setChunkIndex(i);
         }
@@ -49,11 +55,21 @@ public class DocumentService {
         meta.setFileName(fileName);
         meta.setFileSize(file.getSize());
         meta.setChunkCount(chunks.size());
+        meta.setSplitMode(config.splitMode());
+        meta.setChunkSize(config.chunkSize());
+        meta.setOverlap(config.overlap());
+        meta.setDelimiter(config.isDelimiterMode() ? config.delimiter() : null);
         return docRepo.save(meta);
     }
 
     public List<DocumentMeta> listAll() {
         return docRepo.findAll();
+    }
+
+    public List<ChunkPreview> getChunkPreviews(Long id) {
+        return docRepo.findById(id)
+            .map(m -> vectorChunkRepo.findPreviewsByFileName(m.getFileName(), 20))
+            .orElse(List.of());
     }
 
     public void deleteById(Long id) {

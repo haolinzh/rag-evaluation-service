@@ -28,8 +28,30 @@ public class DocumentMeta {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @Column(name = "split_mode")
+    private String splitMode;
+
+    @Column(name = "chunk_size")
+    private Integer chunkSize;
+
+    @Column(name = "chunk_overlap")
+    private Integer overlap;
+
+    @Column(name = "delimiter")
+    private String delimiter;
+
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 }

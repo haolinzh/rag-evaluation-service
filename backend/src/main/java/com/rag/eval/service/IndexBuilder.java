@@ -50,7 +50,7 @@ public class IndexBuilder {
                 vectorChunkRepo.insert(
                     chunk.getChunkId(), chunk.getFileName(), chunk.getSourceType(),
                     chunk.getLanguage(), chunk.getChapter(), chunk.getSection(),
-                    j, chunk.getContent(), embStr
+                    chunk.getChunkIndex(), chunk.getContent(), embStr
                 );
             }
 

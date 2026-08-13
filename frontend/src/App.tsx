@@ -1,17 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, theme } from 'antd';
+import { Layout, theme, Grid, Button, Drawer } from 'antd';
+import { FileTextOutlined, BarChartOutlined } from '@ant-design/icons';
+import { Group, Panel, Separator } from 'react-resizable-panels';
 import DocumentPanel from './components/DocumentPanel';
 import ChatPanel from './components/ChatPanel';
 import MetricsPanel from './components/MetricsPanel';
+import LogPanel from './components/LogPanel';
+import DocumentManagement from './components/DocumentManagement';
+import LogManagement from './components/LogManagement';
 import type { DocumentMeta } from './types';
 import { listDocuments } from './api';
 
-const { Header, Sider, Content } = Layout;
+const { Header, Content } = Layout;
 
 const App: React.FC = () => {
   const [documents, setDocuments] = useState<DocumentMeta[]>([]);
   const [retrievalMode, setRetrievalMode] = useState<string>('hybrid');
+  const [view, setView] = useState<'main' | 'documents' | 'logs'>('main');
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [metricsOpen, setMetricsOpen] = useState(false);
   const { token: { colorBgContainer } } = theme.useToken();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
 
   const refreshDocuments = () => {
     listDocuments().then(setDocuments).catch(console.error);
@@ -19,30 +29,80 @@ const App: React.FC = () => {
 
   useEffect(() => { refreshDocuments(); }, []);
 
+  if (view === 'documents') {
+    return <DocumentManagement onBack={() => setView('main')} />;
+  }
+
+  if (view === 'logs') {
+    return <LogManagement onBack={() => setView('main')} />;
+  }
+
+  const documentPanel = (
+    <DocumentPanel
+      documents={documents}
+      retrievalMode={retrievalMode}
+      onModeChange={setRetrievalMode}
+      onRefresh={refreshDocuments}
+      onOpenManagement={() => setView('documents')}
+    />
+  );
+  const chatPanel = <ChatPanel retrievalMode={retrievalMode} />;
+  const metricsPanel = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <MetricsPanel />
+      <LogPanel onOpenManagement={() => setView('logs')} />
+    </div>
+  );
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
+      <style>{`
+        .rag-sep { width: 6px; background: #f0f0f0; transition: background 0.15s ease; }
+        .rag-sep[data-separator="hover"], .rag-sep[data-separator="active"] { background: #1677ff; }
+      `}</style>
+
       <Header style={{
         color: '#fff', fontSize: 20, fontWeight: 600,
-        display: 'flex', alignItems: 'center', padding: '0 24px',
+        display: 'flex', alignItems: 'center', padding: '0 24px', gap: 12,
       }}>
-        RAG 知识库问答系统
+        {isMobile && (
+          <Button type="text" icon={<FileTextOutlined />} onClick={() => setDocsOpen(true)} style={{ color: '#fff' }}>
+            文档
+          </Button>
+        )}
+        <span style={{ flex: 1, textAlign: isMobile ? 'center' : 'left' }}>RAG 知识库问答系统</span>
+        {isMobile && (
+          <Button type="text" icon={<BarChartOutlined />} onClick={() => setMetricsOpen(true)} style={{ color: '#fff' }}>
+            指标
+          </Button>
+        )}
       </Header>
-      <Layout>
-        <Sider width={360} style={{ background: colorBgContainer, padding: 16, overflowY: 'auto' }}>
-          <DocumentPanel
-            documents={documents}
-            retrievalMode={retrievalMode}
-            onModeChange={setRetrievalMode}
-            onRefresh={refreshDocuments}
-          />
-        </Sider>
-        <Content style={{ padding: 16, display: 'flex', flexDirection: 'column' }}>
-          <ChatPanel retrievalMode={retrievalMode} />
+
+      {isMobile ? (
+        <Content style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {chatPanel}
+          <Drawer title="文档" placement="left" width={320} open={docsOpen} onClose={() => setDocsOpen(false)}>
+            {documentPanel}
+          </Drawer>
+          <Drawer title="运维指标" placement="right" width={320} open={metricsOpen} onClose={() => setMetricsOpen(false)}>
+            {metricsPanel}
+          </Drawer>
         </Content>
-        <Sider width={320} style={{ background: colorBgContainer, padding: 16, overflowY: 'auto' }}>
-          <MetricsPanel />
-        </Sider>
-      </Layout>
+      ) : (
+        <Group orientation="horizontal" id="rag-main" style={{ flex: 1, minHeight: 0 }}>
+          <Panel id="documents" defaultSize="22" minSize="15" maxSize="35" style={{ padding: 16, background: colorBgContainer }}>
+            {documentPanel}
+          </Panel>
+          <Separator className="rag-sep" />
+          <Panel id="chat" defaultSize="58" minSize="30" style={{ padding: 16, display: 'flex', flexDirection: 'column' }}>
+            {chatPanel}
+          </Panel>
+          <Separator className="rag-sep" />
+          <Panel id="metrics" defaultSize="20" minSize="15" maxSize="30" style={{ padding: 16, background: colorBgContainer }}>
+            {metricsPanel}
+          </Panel>
+        </Group>
+      )}
     </Layout>
   );
 };

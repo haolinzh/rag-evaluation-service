@@ -1,5 +1,6 @@
 package com.rag.eval.service;
 
+import com.rag.eval.model.ChunkConfig;
 import org.apache.tika.Tika;
 import org.springframework.stereotype.Component;
 
@@ -14,8 +15,6 @@ public class DocumentParserService {
 
     private static final Pattern CHAPTER_PAT = Pattern.compile("^第([一二三四五六七八九十百]+)章\\s*(.*)");
     private static final Pattern SECTION_PAT = Pattern.compile("^第([一二三四五六七八九十百]+)节\\s*(.*)");
-    private static final int CHUNK_SIZE = 500;
-    private static final int OVERLAP = 50;
 
     private final Tika tika = new Tika();
 
@@ -24,7 +23,13 @@ public class DocumentParserService {
     }
 
     public List<ChunkData> splitAndEnrich(String text, String fileName, String sourceType) {
-        List<String> rawChunks = splitText(text, CHUNK_SIZE, OVERLAP);
+        return splitAndEnrich(text, fileName, sourceType, ChunkConfig.defaults());
+    }
+
+    public List<ChunkData> splitAndEnrich(String text, String fileName, String sourceType, ChunkConfig config) {
+        List<String> rawChunks = config.isDelimiterMode()
+            ? splitByDelimiter(text, config.delimiter())
+            : splitText(text, config.chunkSize(), config.overlap());
         List<ChunkData> result = new ArrayList<>();
 
         for (int i = 0; i < rawChunks.size(); i++) {
@@ -49,9 +54,25 @@ public class DocumentParserService {
         return result;
     }
 
+    private List<String> splitByDelimiter(String text, String delimiter) {
+        List<String> chunks = new ArrayList<>();
+        if (text == null || text.isEmpty() || delimiter == null || delimiter.isEmpty()) return chunks;
+
+        String[] parts = text.split(Pattern.quote(delimiter), -1);
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) chunks.add(trimmed);
+        }
+        return chunks;
+    }
+
     private List<String> splitText(String text, int maxChars, int overlap) {
         List<String> chunks = new ArrayList<>();
         if (text == null || text.isEmpty()) return chunks;
+
+        if (maxChars <= 0) maxChars = ChunkConfig.DEFAULT_CHUNK_SIZE;
+        if (overlap < 0) overlap = 0;
+        if (overlap >= maxChars) overlap = maxChars - 1;
 
         // Simple character-based splitting with paragraph boundary awareness
         int start = 0;

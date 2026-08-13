@@ -13,25 +13,31 @@ public class RetrievalService {
     private final ElasticsearchService esService;
     private final VectorSearchService vectorService;
     private final RRFusionService rrfService;
+    private final RerankService rerankService;
     private final DashScopeService dashScope;
     private final String mode;
     private final int topK;
     private final int recallMultiplier;
+    private final int rerankCandidates;
 
     public RetrievalService(ElasticsearchService esService,
                             VectorSearchService vectorService,
                             RRFusionService rrfService,
+                            RerankService rerankService,
                             DashScopeService dashScope,
                             @Value("${retrieval.mode}") String mode,
                             @Value("${retrieval.top-k}") int topK,
-                            @Value("${retrieval.recall-size-multiplier}") int recallMultiplier) {
+                            @Value("${retrieval.recall-size-multiplier}") int recallMultiplier,
+                            @Value("${retrieval.rerank-candidates:20}") int rerankCandidates) {
         this.esService = esService;
         this.vectorService = vectorService;
         this.rrfService = rrfService;
+        this.rerankService = rerankService;
         this.dashScope = dashScope;
         this.mode = mode;
         this.topK = topK;
         this.recallMultiplier = recallMultiplier;
+        this.rerankCandidates = rerankCandidates;
     }
 
     public List<SearchResult> retrieve(String query, String requestedMode) {
@@ -41,7 +47,7 @@ public class RetrievalService {
             return vectorService.semanticSearch(emb, topK);
         }
 
-        // Hybrid mode: parallel keyword + semantic, then RRF
+        // Hybrid + hybrid-rerank share the parallel keyword + semantic recall
         int recallSize = Math.max(topK * recallMultiplier, 30);
         String queryEmb = embedQuery(query);
 
@@ -53,11 +59,20 @@ public class RetrievalService {
         List<SearchResult> keywordResults = keywordFuture.join();
         List<SearchResult> vectorResults = vectorFuture.join();
 
+        if ("hybrid-rerank".equals(effectiveMode)) {
+            List<SearchResult> fused = rrfService.fuse(keywordResults, vectorResults, rerankCandidates);
+            return rerankService.rerank(query, fused, topK);
+        }
         return rrfService.fuse(keywordResults, vectorResults, topK);
     }
 
     public String resolveMode(String requestedMode) {
-        if ("vector".equalsIgnoreCase(requestedMode) || "hybrid".equalsIgnoreCase(requestedMode)) {
+        if ("rerank".equalsIgnoreCase(requestedMode)) {
+            return "hybrid-rerank";
+        }
+        if ("vector".equalsIgnoreCase(requestedMode)
+                || "hybrid".equalsIgnoreCase(requestedMode)
+                || "hybrid-rerank".equalsIgnoreCase(requestedMode)) {
             return requestedMode.toLowerCase();
         }
         return mode;

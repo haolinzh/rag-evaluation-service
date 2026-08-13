@@ -29,4 +29,10 @@ public class ChatController {
     public ResponseEntity<List<ChatMessage>> history(@PathVariable String sessionId) {
         return ResponseEntity.ok(chatService.getHistory(sessionId));
     }
+
+    @DeleteMapping("/history/{sessionId}")
+    public ResponseEntity<Void> deleteHistory(@PathVariable String sessionId) {
+        chatService.deleteHistory(sessionId);
+        return ResponseEntity.noContent().build();
+    }
 }

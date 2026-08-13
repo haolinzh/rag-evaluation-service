@@ -18,18 +18,18 @@ class PIIRedactionServiceTest {
 
         var phone = new PIIRedactionService.PatternConfig();
         phone.setName("cn_phone");
-        phone.setRegex("1[3-9]\\d{9}");
-        phone.setReplacement("[PHONE_REDACTED]");
+        phone.setRegex("(1[3-9]\\d)(\\d{4})(\\d{4})");
+        phone.setReplacement("$1****$3");
 
         var email = new PIIRedactionService.PatternConfig();
         email.setName("email");
-        email.setRegex("[\\w.%+-]+@[\\w.-]+\\.[A-Za-z]{2,}");
-        email.setReplacement("[EMAIL_REDACTED]");
+        email.setRegex("([\\w.%+-])[\\w.%+-]*(@[\\w.-]+\\.[A-Za-z]{2,})");
+        email.setReplacement("$1***$2");
 
         var idCard = new PIIRedactionService.PatternConfig();
         idCard.setName("cn_id");
-        idCard.setRegex("\\d{6}(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[\\dXx]");
-        idCard.setReplacement("[ID_REDACTED]");
+        idCard.setRegex("(\\d{6})(?:19|20)\\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\\d|3[01])(\\d{3}[\\dXx])");
+        idCard.setReplacement("$1********$2");
 
         // Apply ID card first to avoid phone regex matching within ID numbers
         service.setPatterns(List.of(idCard, phone, email));
@@ -38,14 +38,14 @@ class PIIRedactionServiceTest {
     @Test
     void redact_phoneNumber_masks() {
         String result = service.redact("请联系我：13812345678");
-        assertTrue(result.contains("[PHONE_REDACTED]"));
+        assertTrue(result.contains("138****5678"), "Expected middle-4 masked in: " + result);
         assertFalse(result.contains("13812345678"));
     }
 
     @Test
     void redact_email_masks() {
         String result = service.redact("邮箱: test@example.com");
-        assertTrue(result.contains("[EMAIL_REDACTED]"));
+        assertTrue(result.contains("t***@example.com"), "Expected local-part masked in: " + result);
         assertFalse(result.contains("test@example.com"));
     }
 
@@ -54,7 +54,7 @@ class PIIRedactionServiceTest {
         // 6 digits + 19900101 + 1234 = 18-digit valid-format CN ID
         String testId = "110101199001011234";
         String result = service.redact("身份证: " + testId);
-        assertTrue(result.contains("[ID_REDACTED]"), "Expected ID to be redacted in: " + result);
+        assertTrue(result.contains("110101********1234"), "Expected ID to be redacted in: " + result);
         assertFalse(result.contains(testId));
     }
 

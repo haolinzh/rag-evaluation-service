@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Upload, Button, List, Popconfirm, Select, Space, Typography, message, Tag, Progress } from 'antd';
-import { UploadOutlined, DeleteOutlined, ReloadOutlined, InboxOutlined } from '@ant-design/icons';
+import { Upload, Button, List, Popconfirm, Select, Space, Typography, message, Tag, Progress, Input, InputNumber } from 'antd';
+import { UploadOutlined, DeleteOutlined, ReloadOutlined, InboxOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import type { DocumentMeta } from '../types';
 import { uploadDocument, deleteDocument } from '../api';
 
@@ -12,17 +12,22 @@ interface Props {
   retrievalMode: string;
   onModeChange: (mode: string) => void;
   onRefresh: () => void;
+  onOpenManagement: () => void;
 }
 
-const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange, onRefresh }) => {
+const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange, onRefresh, onOpenManagement }) => {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [splitMode, setSplitMode] = useState<'size' | 'delimiter'>('size');
+  const [chunkSize, setChunkSize] = useState(500);
+  const [delimiter, setDelimiter] = useState('');
+  const [overlap, setOverlap] = useState(50);
 
   const handleUpload = async (file: File) => {
     setUploading(true);
     setProgress(0);
     try {
-      await uploadDocument(file, setProgress);
+      await uploadDocument(file, { splitMode, chunkSize, delimiter, overlap }, setProgress);
       message.success(`${file.name} 上传成功`);
       onRefresh();
     } catch (err) {
@@ -53,16 +58,45 @@ const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange
 
   return (
     <div>
-      <Typography.Title level={5} style={{ marginTop: 0 }}>文档管理</Typography.Title>
+      <Typography.Title level={5} style={{ marginTop: 0 }}>文档</Typography.Title>
 
       <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
         <Space>
           <span>检索模式:</span>
-          <Select value={retrievalMode} onChange={onModeChange} style={{ width: 140 }}
+          <Select value={retrievalMode} onChange={onModeChange} style={{ width: 160 }}
             options={[
               { value: 'hybrid', label: 'Hybrid (混合)' },
               { value: 'vector', label: 'Vector (向量)' },
+              { value: 'hybrid-rerank', label: 'Hybrid + Rerank' },
             ]} />
+        </Space>
+
+        <Space>
+          <span>切分方式:</span>
+          <Select value={splitMode} onChange={setSplitMode} style={{ width: 160 }}
+            options={[
+              { value: 'size', label: '按大小 (size)' },
+              { value: 'delimiter', label: '特殊字符 (分隔符)' },
+            ]} />
+        </Space>
+
+        {splitMode === 'size' ? (
+          <Space>
+            <span>Chunk 大小:</span>
+            <InputNumber min={50} max={5000} value={chunkSize} onChange={v => setChunkSize(v ?? 500)} style={{ width: 120 }} />
+            <Text type="secondary">字符</Text>
+          </Space>
+        ) : (
+          <Space>
+            <span>分隔符:</span>
+            <Input value={delimiter} onChange={e => setDelimiter(e.target.value)} placeholder="如 ## 或 ###" style={{ width: 140 }} />
+          </Space>
+        )}
+
+        <Space>
+          <span>Overlap:</span>
+          <InputNumber min={0} max={500} value={overlap} onChange={v => setOverlap(v ?? 50)} disabled={splitMode === 'delimiter'} style={{ width: 120 }} />
+          <Text type="secondary">字符（按大小切分时生效）</Text>
         </Space>
       </Space>
 
@@ -88,7 +122,10 @@ const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange
       )}
 
       <div style={{ marginBottom: 8 }}>
-        <Button icon={<ReloadOutlined />} onClick={onRefresh} size="small">刷新列表</Button>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={onRefresh} size="small">刷新列表</Button>
+          <Button icon={<FolderOpenOutlined />} onClick={onOpenManagement} size="small">文档详情</Button>
+        </Space>
       </div>
 
       <List

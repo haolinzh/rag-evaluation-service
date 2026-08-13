@@ -1,5 +1,6 @@
 package com.rag.eval.repository;
 
+import com.rag.eval.model.ChunkPreview;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -26,6 +27,28 @@ public class VectorChunkRepo {
 
     public void deleteByFileName(String fileName) {
         jdbc.update("DELETE FROM vector_chunks WHERE file_name = ?", fileName);
+    }
+
+    public List<ChunkPreview> findPreviewsByFileName(String fileName, int limit) {
+        String sql = """
+            SELECT chunk_index, chapter, section, content
+            FROM vector_chunks
+            WHERE file_name = ?
+            ORDER BY chunk_index
+            LIMIT ?
+            """;
+        return jdbc.query(sql, (rs, rowNum) -> new ChunkPreview(
+            rs.getInt("chunk_index"),
+            rs.getString("chapter"),
+            rs.getString("section"),
+            snippet(rs.getString("content"))
+        ), fileName, limit);
+    }
+
+    private String snippet(String content) {
+        if (content == null) return "";
+        String flat = content.replaceAll("\\s+", " ").trim();
+        return flat.length() > 150 ? flat.substring(0, 150) + "…" : flat;
     }
 
     public List<VectorSearchRow> similaritySearch(String queryEmbedding, double threshold, int topK) {
