@@ -24,6 +24,16 @@ public class ElasticsearchService {
         this.esIndexName = esIndexName;
     }
 
+    public void deleteByFileName(String fileName) {
+        try {
+            esClient.deleteByQuery(d -> d
+                .index(esIndexName)
+                .query(q -> q.term(t -> t.field("file_name.keyword").value(fileName))));
+        } catch (Exception e) {
+            System.err.println("ES delete failed: " + e.getMessage());
+        }
+    }
+
     public List<SearchResult> keywordSearch(String query, int topK) {
         try {
             SearchRequest request = SearchRequest.of(s -> s

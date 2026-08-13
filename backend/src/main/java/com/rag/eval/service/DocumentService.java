@@ -16,13 +16,16 @@ public class DocumentService {
     private final IndexBuilder indexBuilder;
     private final DocumentMetaRepo docRepo;
     private final VectorChunkRepo vectorChunkRepo;
+    private final ElasticsearchService esService;
 
     public DocumentService(DocumentParserService parser, IndexBuilder indexBuilder,
-                           DocumentMetaRepo docRepo, VectorChunkRepo vectorChunkRepo) {
+                           DocumentMetaRepo docRepo, VectorChunkRepo vectorChunkRepo,
+                           ElasticsearchService esService) {
         this.parser = parser;
         this.indexBuilder = indexBuilder;
         this.docRepo = docRepo;
         this.vectorChunkRepo = vectorChunkRepo;
+        this.esService = esService;
     }
 
     public DocumentMeta ingest(MultipartFile file) throws Exception {
@@ -50,6 +53,7 @@ public class DocumentService {
     public void deleteById(Long id) {
         docRepo.findById(id).ifPresent(meta -> {
             vectorChunkRepo.deleteByFileName(meta.getFileName());
+            esService.deleteByFileName(meta.getFileName());
             docRepo.delete(meta);
         });
     }
