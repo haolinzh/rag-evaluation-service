@@ -12,11 +12,19 @@ Usage:
     python load_test.py --mode hybrid --question "什么是 RAG？"
 """
 import argparse
+import json
 import statistics
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
+
+
+def load_questions(path):
+    if path:
+        with open(path) as f:
+            return [q["question"] for q in json.load(f)]
+    return None
 
 
 def send_one(url, question, session_id, mode, timeout):
@@ -48,12 +56,21 @@ def main():
     parser.add_argument("--requests", type=int, default=40)
     parser.add_argument("--mode", default="hybrid")
     parser.add_argument("--question", default="什么是 RAG？")
+    parser.add_argument("--questions-file", default=None,
+                        help="JSON file with a list of {question: ...}; round-robins to avoid cache masking")
     parser.add_argument("--timeout", type=int, default=120)
     args = parser.parse_args()
 
+    questions = load_questions(args.questions_file)
+    if questions:
+        source = f"round-robin over {len(questions)} questions from {args.questions_file}"
+    else:
+        questions = [args.question]
+        source = f"single question (cache may mask cold latency): {args.question}"
+
     print(f"=== Load Test ===")
     print(f"URL: {args.url}  concurrency={args.concurrency}  requests={args.requests}  mode={args.mode}")
-    print(f"Question: {args.question}\n")
+    print(f"Questions: {source}\n")
 
     latencies = []
     ok_count = 0
@@ -62,7 +79,7 @@ def main():
     start = time.perf_counter()
     with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
         futures = [
-            pool.submit(send_one, args.url, args.question, f"load-{i}", args.mode, args.timeout)
+            pool.submit(send_one, args.url, questions[i % len(questions)], f"load-{i}", args.mode, args.timeout)
             for i in range(args.requests)
         ]
         for future in as_completed(futures):

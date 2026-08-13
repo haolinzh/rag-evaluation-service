@@ -396,7 +396,8 @@ mvn test
 |---|---|
 | [成本估算与模型选型](docs/COST_ESTIMATION.md) | DashScope 三模型选型理由与单次/月度成本估算 |
 | [日志字段字典](docs/LOG_FIELD_DICTIONARY.md) | `request_log` 表与指标 CSV 逐字段说明 + 样例 |
-| [评测报告](docs/EVALUATION_REPORT.md) | 22 题测试集、5 项指标、报告模板 |
+| [评测报告](docs/EVALUATION_REPORT.md) | 22 题测试集、5 项指标、三模式对比实测 |
+| [问题诊断报告](docs/ISSUE_DIAGNOSIS.md) | 4 个已修复问题的证据 + 前后量化对比 |
 | [问题诊断指南](docs/TROUBLESHOOTING.md) | 按症状排查 + 定位命令 |
 
 ---

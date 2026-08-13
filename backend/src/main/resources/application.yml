@@ -45,7 +45,7 @@ safety:
   min-similarity: 0.4
   enable-out-of-scope-check: true
   out-of-scope-threshold: 0.55
-  forbidden-keywords: violence,hate,bomb
+  forbidden-keywords: violence,hate,bomb,暴力,仇恨,炸弹,武器,银行卡,身份证,密码
 
 pii:
   enabled: true

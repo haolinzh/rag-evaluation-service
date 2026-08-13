@@ -1,0 +1,9 @@
+Metric,Hybrid,Vector,Hybrid+Rerank
+Faithfulness,0.22,0.189,0.22
+Context Precision,0.018,0.318,0.261
+Answer Compliance,0.814,0.791,0.864
+Refusal Appropr.,0.545,0.591,0.5
+Style Consistency,0.836,0.818,0.864
+Avg Latency (ms),3636.8,3762.5,3168.3
+P50 Latency (ms),570.0,923.8,905.4
+P95 Latency (ms),10001.6,16527.6,13112.5

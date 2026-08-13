@@ -200,10 +200,10 @@ def main():
     with open(csv_file, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=[
             "question_id", "question", "language", "expected_type",
-            "retrieval_mode", "refusal", "latency_ms",
+            "retrieval_mode", "refusal", "latency_ms", "answer",
             "faithfulness", "context_precision", "answer_compliance",
             "refusal_appropriate", "style_consistent"
-        ])
+        ], extrasaction="ignore")
         writer.writeheader()
         for r in results:
             if "error" not in r:
