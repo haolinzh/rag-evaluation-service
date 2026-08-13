@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Input, Button, Typography, Space, Tag, Spin, Select } from 'antd';
+import { Input, Button, Typography, Space, Tag, Spin } from 'antd';
 import { SendOutlined, UserOutlined, RobotOutlined, PlusOutlined } from '@ant-design/icons';
 import { askQuestion, getChatHistory } from '../api';
 import type { ChatResponse, ChatMessage } from '../types';
@@ -83,6 +83,7 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
   const [activeId, setActiveId] = useState<string>(initialRef.current.activeId);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [hoverId, setHoverId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const active = sessions.find(s => s.id === activeId) ?? sessions[0];
@@ -165,76 +166,109 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <Select
-          value={activeId}
-          onChange={setActiveId}
-          style={{ flex: 1 }}
-          options={sessions.map(s => ({ value: s.id, label: s.title }))}
-        />
-        <Button icon={<PlusOutlined />} onClick={handleNewSession}>新建对话</Button>
-      </div>
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px', marginBottom: 12 }}>
-        {(!active || active.messages.length === 0) && (
-          <div style={{ textAlign: 'center', color: '#999', marginTop: 120 }}>
-            <RobotOutlined style={{ fontSize: 48 }} />
-            <p>向知识库提问，开始对话</p>
-            <Tag color="blue">检索模式: {retrievalMode}</Tag>
-          </div>
-        )}
-        {active && active.messages.map(msg => (
-          <div key={msg.id} style={{
-            marginBottom: 16,
-            display: 'flex', flexDirection: 'column',
-            alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
-          }}>
-            <Space align="start">
-              {msg.role === 'assistant' && <RobotOutlined style={{ color: '#1677ff' }} />}
-              <div style={{
-                maxWidth: '90%',
-                padding: '10px 14px',
-                borderRadius: 12,
-                background: msg.role === 'user' ? '#1677ff' : '#f0f0f0',
-                color: msg.role === 'user' ? '#fff' : '#333',
-              }}>
-                <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-                {msg.retrievalMode && (
-                  <Tag style={{ marginTop: 6 }} color="green">模式: {msg.retrievalMode}</Tag>
-                )}
-                {msg.refusal && <Tag style={{ marginTop: 6 }} color="orange">拒答</Tag>}
-                {msg.sources && msg.sources.length > 0 && (
-                  <div style={{ marginTop: 6 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>来源: </Text>
-                    {msg.sources.map((s, i) => (
-                      <Tag key={i} color="blue" style={{ fontSize: 11, marginBottom: 2 }}>
-                        {s.fileName}
-                      </Tag>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {msg.role === 'user' && <UserOutlined style={{ color: '#1677ff' }} />}
-            </Space>
-          </div>
-        ))}
-        {loading && <Spin style={{ display: 'block', margin: '8px auto' }} />}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div style={{ display: 'flex', gap: 8 }}>
-        <TextArea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onPressEnter={e => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }}
-          placeholder="输入问题，Enter 发送，Shift+Enter 换行"
-          rows={2}
-          disabled={loading}
-        />
-        <Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={loading}>
-          发送
+    <div style={{ flex: 1, display: 'flex', minHeight: 0, maxHeight: 'calc(100vh - 100px)' }}>
+      {/* Conversation list (always visible) */}
+      <div style={{
+        width: 208,
+        flexShrink: 0,
+        borderRight: '1px solid #f0f0f0',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '12px 8px',
+        overflowY: 'auto',
+      }}>
+        <Button icon={<PlusOutlined />} onClick={handleNewSession} block style={{ marginBottom: 12 }}>
+          新建对话
         </Button>
+        {sessions.map(s => {
+          const isActive = s.id === activeId;
+          return (
+            <div
+              key={s.id}
+              onClick={() => setActiveId(s.id)}
+              onMouseEnter={() => setHoverId(s.id)}
+              onMouseLeave={() => setHoverId(null)}
+              style={{
+                padding: '9px 12px',
+                borderRadius: 8,
+                cursor: 'pointer',
+                marginBottom: 4,
+                fontSize: 14,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                background: isActive ? '#e6f4ff' : (s.id === hoverId ? '#f5f5f5' : 'transparent'),
+                color: isActive ? '#1677ff' : 'rgba(0,0,0,0.85)',
+              }}
+            >
+              {s.title}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Chat area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px', marginBottom: 12 }}>
+          {(!active || active.messages.length === 0) && (
+            <div style={{ textAlign: 'center', color: '#999', marginTop: 120 }}>
+              <RobotOutlined style={{ fontSize: 48 }} />
+              <p>向知识库提问，开始对话</p>
+              <Tag color="blue">检索模式: {retrievalMode}</Tag>
+            </div>
+          )}
+          {active && active.messages.map(msg => (
+            <div key={msg.id} style={{
+              marginBottom: 16,
+              display: 'flex', flexDirection: 'column',
+              alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+            }}>
+              <Space align="start">
+                {msg.role === 'assistant' && <RobotOutlined style={{ color: '#1677ff' }} />}
+                <div style={{
+                  maxWidth: '90%',
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  background: msg.role === 'user' ? '#1677ff' : '#f0f0f0',
+                  color: msg.role === 'user' ? '#fff' : '#333',
+                }}>
+                  <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                  {msg.retrievalMode && (
+                    <Tag style={{ marginTop: 6 }} color="green">模式: {msg.retrievalMode}</Tag>
+                  )}
+                  {msg.refusal && <Tag style={{ marginTop: 6 }} color="orange">拒答</Tag>}
+                  {msg.sources && msg.sources.length > 0 && (
+                    <div style={{ marginTop: 6 }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>来源: </Text>
+                      {msg.sources.map((s, i) => (
+                        <Tag key={i} color="blue" style={{ fontSize: 11, marginBottom: 2 }}>
+                          {s.fileName}
+                        </Tag>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {msg.role === 'user' && <UserOutlined style={{ color: '#1677ff' }} />}
+              </Space>
+            </div>
+          ))}
+          {loading && <Spin style={{ display: 'block', margin: '8px auto' }} />}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, paddingRight: 12 }}>
+          <TextArea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onPressEnter={e => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            placeholder="输入问题，Enter 发送，Shift+Enter 换行"
+            rows={2}
+            disabled={loading}
+          />
+          <Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={loading}>
+            发送
+          </Button>
+        </div>
       </div>
     </div>
   );
