@@ -22,15 +22,15 @@ public class SemanticCacheService {
         this.ttlSeconds = ttlSeconds;
     }
 
-    public String lookup(String normalizedQuestion) {
+    public String lookup(String normalizedQuestion, String mode) {
         if (!enabled) return null;
-        String key = cacheKey(normalizedQuestion);
+        String key = cacheKey(normalizedQuestion, mode);
         return redisTemplate.opsForValue().get(key);
     }
 
-    public void store(String normalizedQuestion, String answer) {
+    public void store(String normalizedQuestion, String mode, String answer) {
         if (!enabled) return;
-        String key = cacheKey(normalizedQuestion);
+        String key = cacheKey(normalizedQuestion, mode);
         redisTemplate.opsForValue().set(key, answer, ttlSeconds, TimeUnit.SECONDS);
     }
 
@@ -41,9 +41,9 @@ public class SemanticCacheService {
         }
     }
 
-    private String cacheKey(String question) {
-        // Simple normalization + hash for exact-match cache
+    private String cacheKey(String question, String mode) {
+        // Simple normalization + hash for exact-match cache, keyed by retrieval mode
         String normalized = question.toLowerCase().strip().replaceAll("\\s+", " ");
-        return "cache:qa:" + Integer.toHexString(normalized.hashCode());
+        return "cache:qa:" + Integer.toHexString((normalized + "|" + mode).hashCode());
     }
 }

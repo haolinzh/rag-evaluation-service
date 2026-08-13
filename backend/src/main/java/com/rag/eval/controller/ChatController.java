@@ -21,7 +21,7 @@ public class ChatController {
 
     @PostMapping
     public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request) {
-        ChatResponse response = chatService.ask(request.getQuestion(), request.getSessionId());
+        ChatResponse response = chatService.ask(request.getQuestion(), request.getSessionId(), request.getMode());
         return ResponseEntity.ok(response);
     }
 

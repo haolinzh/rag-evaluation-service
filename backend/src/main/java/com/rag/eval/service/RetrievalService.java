@@ -34,8 +34,9 @@ public class RetrievalService {
         this.recallMultiplier = recallMultiplier;
     }
 
-    public List<SearchResult> retrieve(String query) {
-        if ("vector".equals(mode)) {
+    public List<SearchResult> retrieve(String query, String requestedMode) {
+        String effectiveMode = resolveMode(requestedMode);
+        if ("vector".equals(effectiveMode)) {
             String emb = embedQuery(query);
             return vectorService.semanticSearch(emb, topK);
         }
@@ -53,6 +54,13 @@ public class RetrievalService {
         List<SearchResult> vectorResults = vectorFuture.join();
 
         return rrfService.fuse(keywordResults, vectorResults, topK);
+    }
+
+    public String resolveMode(String requestedMode) {
+        if ("vector".equalsIgnoreCase(requestedMode) || "hybrid".equalsIgnoreCase(requestedMode)) {
+            return requestedMode.toLowerCase();
+        }
+        return mode;
     }
 
     public String getMode() {

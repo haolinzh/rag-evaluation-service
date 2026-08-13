@@ -28,8 +28,8 @@ export async function deleteDocument(id: number): Promise<void> {
   await api.delete(`/documents/${id}`);
 }
 
-export async function askQuestion(question: string, sessionId: string): Promise<ChatResponse> {
-  const { data } = await api.post('/chat', { question, sessionId });
+export async function askQuestion(question: string, sessionId: string, mode: string): Promise<ChatResponse> {
+  const { data } = await api.post('/chat', { question, sessionId, mode });
   return data;
 }
 

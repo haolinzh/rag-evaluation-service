@@ -39,7 +39,7 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
     setMessages(prev => [...prev, userMsg]);
 
     try {
-      const resp = await askQuestion(q, sessionId);
+      const resp = await askQuestion(q, sessionId, retrievalMode);
       const assistantMsg: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',

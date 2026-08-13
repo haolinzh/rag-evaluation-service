@@ -49,32 +49,34 @@ public class ChatService {
         this.historyRepo = historyRepo;
     }
 
-    public ChatResponse ask(String question, String sessionId) {
+    public ChatResponse ask(String question, String sessionId, String mode) {
         if (sessionId == null || sessionId.isBlank()) {
             sessionId = UUID.randomUUID().toString();
         }
 
-        OpsMetrics metrics = metricsCollector.startRequest(sessionId, retrievalService.getMode());
+        String effectiveMode = retrievalService.resolveMode(mode);
+
+        OpsMetrics metrics = metricsCollector.startRequest(sessionId, effectiveMode);
         MDC.put("traceId", metrics.getRequestId());
         MDC.put("sessionId", sessionId);
-        MDC.put("retrievalMode", retrievalService.getMode());
+        MDC.put("retrievalMode", effectiveMode);
 
         Instant start = Instant.now();
 
         try {
             // 1. Check semantic cache
             String normalized = normalizeQuery(question);
-            String cached = cacheService.lookup(normalized);
+            String cached = cacheService.lookup(normalized, effectiveMode);
             if (cached != null) {
                 metrics.setCacheHit(true);
                 metrics.setTotalLatencyMs(0);
                 metricsCollector.complete(metrics);
-                return new ChatResponse(cached, retrievalService.getMode(), List.of(), false, null);
+                return new ChatResponse(cached, effectiveMode, List.of(), false, null);
             }
 
             // 2. Retrieve
             Instant retrievalStart = Instant.now();
-            List<SearchResult> chunks = retrievalService.retrieve(question);
+            List<SearchResult> chunks = retrievalService.retrieve(question, effectiveMode);
             metrics.setRetrievalLatencyMs(Duration.between(retrievalStart, Instant.now()).toMillis());
             metrics.setChunksRetrieved(chunks.size());
             metrics.setMaxChunkScore(chunks.stream().mapToDouble(SearchResult::getScore).max().orElse(0.0));
@@ -90,7 +92,7 @@ public class ChatService {
                 historyRepo.save(createMessage(sessionId, "user", question));
                 historyRepo.save(createMessage(sessionId, "assistant", safe.decision().message));
 
-                return new ChatResponse(safe.decision().message, retrievalService.getMode(),
+                return new ChatResponse(safe.decision().message, effectiveMode,
                     List.of(), true, safe.decision().name());
             }
 
@@ -142,7 +144,7 @@ public class ChatService {
             historyRepo.save(createMessage(sessionId, "assistant", answerText));
 
             // 9. Cache
-            cacheService.store(normalized, answerText);
+            cacheService.store(normalized, effectiveMode, answerText);
 
             // 10. Build sources
             List<Source> sources = chunks.stream()
@@ -153,10 +155,10 @@ public class ChatService {
                 .values().stream().toList();
 
             log.info("Chat completed: retrievalMode={}, latency={}ms, chunks={}, cache={}, refusal={}",
-                retrievalService.getMode(), metrics.getTotalLatencyMs(),
+                effectiveMode, metrics.getTotalLatencyMs(),
                 chunks.size(), metrics.isCacheHit(), metrics.isRefusal());
 
-            return new ChatResponse(answerText, retrievalService.getMode(), sources, false, null);
+            return new ChatResponse(answerText, effectiveMode, sources, false, null);
 
         } finally {
             MDC.remove("traceId");
