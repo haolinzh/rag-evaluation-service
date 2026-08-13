@@ -1,6 +1,6 @@
 # RAG Evaluation Service
 
-一个面向内部**中英双语知识库**的多轮 RAG 问答 + 生成式服务。支持**关键词检索 (Elasticsearch)** 与**向量检索 (pgvector)** 的混合召回，通过 **RRF (Reciprocal Rank Fusion)** 融合排序（无 reranker），并内置安全拒答、PII 脱敏、语义缓存、运维指标上报与自动化评测，是一套完整的 RAG 工程化 case study。
+一个面向内部**中英双语知识库**的多轮 RAG 问答 + 生成式服务。支持**关键词检索 (Elasticsearch)** 与**向量检索 (pgvector)** 的混合召回，通过 **RRF (Reciprocal Rank Fusion)** 融合排序，并可选用 DashScope `qwen3-rerank` 精排；内置安全拒答、PII 脱敏、语义缓存、请求日志、运维指标上报与自动化评测，是一套完整的 RAG 工程化 case study。
 
 > 除大模型/Embedding 走阿里云百炼 (DashScope) Open API 外，其余全部本地部署。
 
@@ -23,6 +23,7 @@
 - [PDF Chunk 策略](#pdf-chunk-策略)
 - [评测](#评测)
 - [运维指标报告](#运维指标报告)
+- [请求日志](#请求日志)
 - [配置说明](#配置说明)
 
 ---
@@ -33,10 +34,11 @@
 |---|---|
 | **多轮对话** | 基于 PostgreSQL 持久化会话历史，最近 N 轮上下文注入 |
 | **混合检索** | ES 关键词 + pgvector 语义，`CompletableFuture` 并行召回，RRF 融合 |
-| **检索模式可切换** | `vector` / `hybrid` 通过 YAML profile 切换，无需改代码，用于评测对比 |
+| **检索模式可切换** | `vector` / `hybrid` / `hybrid-rerank` 三种模式，前端或请求参数动态切换，用于评测对比 |
 | **安全拒答** | 关键词黑名单 → 相似度阈值 → 越界检测，三级闸门 |
-| **PII 脱敏** | 正则脱敏：身份证 → 手机号 → 邮箱（按序，避免手机号误匹配身份证号） |
-| **语义缓存** | Redis 缓存归一化问题，命中直接返回，降低重复调用成本 |
+| **PII 脱敏** | 星号中段掩码：身份证 `110101********1234`、手机号 `138****5678`、邮箱 `t***@example.com`（按序，避免手机号误匹配身份证号） |
+| **语义缓存** | Redis 缓存归一化问题（答案 + 来源一起缓存），命中直接返回，降低重复调用成本 |
+| **请求日志** | 以请求为 entry 持久化：请求 ID、时间、问题、session、模型、模式、命中文档、响应时间、LLM 调用次数、token、脱敏数等 |
 | **运维指标** | 每请求采集 p50/p95 延迟、token 用量、缓存命中率、拒答率、脱敏次数 |
 | **自动化评测** | 22 道中英测试题，对比 vector vs hybrid，输出 5 项质量指标 + 对比报告 |
 
@@ -47,12 +49,12 @@
 | 层 | 技术 |
 |---|---|
 | 后端框架 | Spring Boot 3.4.1 (Java 17) |
-| 大模型 | 阿里云百炼 DashScope：`qwen-plus` (对话) + `text-embedding-v3` (向量) |
+| 大模型 | 阿里云百炼 DashScope：`qwen-plus` (对话) + `text-embedding-v3` (向量) + `qwen3-rerank` (精排) |
 | 关键词检索 | Elasticsearch 8.13.4 |
 | 向量数据库 | PostgreSQL 16 + pgvector (cosine `<=>` 操作符) |
 | 缓存 | Redis 7 |
 | 文档解析 | Apache Tika 3.1.0 (PDF/DOCX/TXT，含 OCR 扫描件) |
-| 前端 | React 18 + TypeScript + Vite + Ant Design 5 |
+| 前端 | React 18 + TypeScript + Vite + Ant Design 5 + react-resizable-panels（可拖动分栏） |
 | 评测 | Python (requests，规则代理 + RAGAS 风格指标) |
 
 ---
@@ -75,13 +77,14 @@
                          │                                         │
                          │  1. 加载历史 (PostgreSQL, 最近 N 轮)     │
                          │  2. RetrievalService.retrieve(query)     │
-                         │       ├─ mode=vector:  VectorSearch      │
-                         │       └─ mode=hybrid:  ES + Vector ──▶ RRF│
+                         │       ├─ vector:        VectorSearch     │
+                         │       ├─ hybrid:        ES+Vector ──▶ RRF│
+                         │       └─ hybrid-rerank: RRF ──▶ Rerank   │
                          │  3. SafetyService.evaluate()  允许/拒答  │
                          │  4. SemanticCacheService.lookup()        │
                          │  5. DashScope (qwen-plus) 生成           │
                          │  6. PIIRedactionService.redact()         │
-                         │  7. 保存历史 + 采集指标                  │
+                         │  7. 保存历史 + 采集指标 + 写请求日志     │
                          └───────┬──────────┬──────────┬───────────┘
                                  │          │          │
                         ┌────────▼───┐ ┌────▼─────┐ ┌──▼────────┐
@@ -117,10 +120,10 @@ rag-evaluation-service/
 │       ├── main/java/com/rag/eval/
 │       │   ├── RAGApplication.java
 │       │   ├── config/             # WebConfig / ES / Redis / pgvector
-│       │   ├── controller/         # Chat / Document / Report
-│       │   ├── model/              # DTO + JPA 实体
+│       │   ├── controller/         # Chat / Document / Report / Log / Cache
+│       │   ├── model/              # DTO + JPA 实体（含 RequestLog）
 │       │   ├── repository/         # JPA + JDBC(pgvector 原生 SQL)
-│       │   ├── service/            # 检索/安全/脱敏/缓存/指标/报告
+│       │   ├── service/            # 检索/重排/安全/脱敏/缓存/指标/报告
 │       │   └── pipeline/           # 批量入库 CommandLineRunner
 │       ├── main/resources/
 │       │   ├── application.yml
@@ -130,11 +133,14 @@ rag-evaluation-service/
 │       └── test/java/.../          # RRF / Safety / PII 单测 + 集成
 ├── frontend/                       # React 18 + TS + Vite + AntD
 │   └── src/
-│       ├── App.tsx                 # 三栏布局
+│       ├── App.tsx                 # 三栏可拖动 + 响应式布局
 │       └── components/
-│           ├── DocumentPanel.tsx    # 上传 + 检索模式切换
+│           ├── DocumentPanel.tsx    # 上传（chunk 配置）+ 检索模式切换
+│           ├── DocumentManagement.tsx # 文档管理页（chunk 预览）
 │           ├── ChatPanel.tsx        # 多轮对话 + 来源展示
-│           └── MetricsPanel.tsx     # 指标面板 + CSV 下载
+│           ├── MetricsPanel.tsx     # 指标面板 + CSV 下载 + 清缓存
+│           ├── LogPanel.tsx         # 主页日志（自动刷新）
+│           └── LogManagement.tsx    # 日志管理页（全量明细）
 └── evaluation/
     ├── questions.json              # 22 道中英测试题
     ├── evaluate.py                 # 评测脚本（5 项质量指标）
@@ -208,11 +214,16 @@ npm run dev
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| `POST` | `/api/chat` | 多轮问答，请求体 `{"question": "...", "sessionId": "..."}` |
+| `POST` | `/api/chat` | 多轮问答，请求体 `{"question": "...", "sessionId": "...", "mode": "hybrid"}` |
 | `GET` | `/api/chat/history/{sessionId}` | 查询会话历史 |
-| `POST` | `/api/documents/upload` | 上传文档 (multipart) |
+| `DELETE` | `/api/chat/history/{sessionId}` | 删除会话历史 |
+| `POST` | `/api/documents/upload` | 上传文档 (multipart，可带 `splitMode`/`chunkSize`/`overlap`/`delimiter` 参数) |
 | `GET` | `/api/documents` | 文档列表 |
 | `DELETE` | `/api/documents/{id}` | 删除文档 |
+| `GET` | `/api/documents/{id}/chunks` | 文档 chunk 预览 |
+| `GET` | `/api/logs?limit=100` | 请求日志列表（按 id 倒序） |
+| `DELETE` | `/api/logs` | 清空请求日志 |
+| `POST` | `/api/cache/clear` | 清空语义缓存 |
 | `GET` | `/api/report/csv` | 下载运维指标 CSV |
 
 **问答示例：**
@@ -220,7 +231,7 @@ npm run dev
 ```bash
 curl -X POST localhost:8080/api/chat \
   -H 'Content-Type: application/json' \
-  -d '{"question":"什么是 RAG？","sessionId":"test-1"}'
+  -d '{"question":"什么是 RAG？","sessionId":"test-1","mode":"hybrid"}'
 ```
 
 响应示例：
@@ -241,13 +252,17 @@ curl -X POST localhost:8080/api/chat \
 
 ## 检索模式与 RRF
 
-两种模式通过 Spring profile 切换：
+三种模式，既可通过 `retrieval.mode` 配置默认值，也可在请求体 `mode` 字段动态切换（前端有下拉选择）：
+
+| 模式 | 行为 |
+|---|---|
+| `vector` | 仅 pgvector 向量语义检索 |
+| `hybrid` | ES 关键词 + pgvector 向量并行召回 → RRF 融合（无重排） |
+| `hybrid-rerank` | ES + 向量 → RRF 融合出候选集 → DashScope `qwen3-rerank` 精排取 topK |
 
 ```bash
-# hybrid（默认）：ES 关键词 + pgvector 向量 → RRF 融合
-mvn spring-boot:run
-
-# vector-only：仅 pgvector 向量检索
+# 通过 profile 切换默认模式
+mvn spring-boot:run                                    # hybrid（默认）
 mvn spring-boot:run -Dspring-boot.run.profiles=vector
 ```
 
@@ -255,10 +270,11 @@ mvn spring-boot:run -Dspring-boot.run.profiles=vector
 
 ```yaml
 retrieval:
-  mode: hybrid        # "vector" | "hybrid"
+  mode: hybrid              # "vector" | "hybrid" | "hybrid-rerank"
   top-k: 5
   rrf-k: 60
   recall-size-multiplier: 3      # 每路召回 = topK * 3
+  rerank-candidates: 20          # hybrid-rerank 时 RRF 先保留的候选数
   similarity-threshold: 0.7
 ```
 
@@ -289,6 +305,8 @@ chunk 元数据（同时写入 ES `_source` 与 pgvector `vector_chunks` 表）�
   "token_count": 480
 }
 ```
+
+分块参数（切分方式 `size`/`delimiter`、chunk 大小、overlap、分隔符）支持在上传时通过接口或前端配置，`DocumentMeta` 持久化记录每次入库的参数；文档管理页可查看每个文档的 chunk 预览（`GET /api/documents/{id}/chunks`）。
 
 ---
 
@@ -327,6 +345,19 @@ CSV 包含逐请求明细（检索/生成/总延迟、prompt/completion token、
 
 ---
 
+## 请求日志
+
+后端将每次问答请求以「请求」为 entry 持久化到 PostgreSQL（`request_log` 表），字段包括：请求 ID、时间、问题、回答、session、模型、检索模式、命中文档、总/检索/生成延迟、LLM 调用次数、prompt/completion token、缓存命中、拒答及原因、召回 chunk 数、最高相似度、PII 脱敏数、状态（`success` / `refused` / `error`）。
+
+前端提供两处查看入口：
+
+- 主页右侧「日志」面板：每 5 秒自动刷新，显示最近请求概览；
+- 「日志详情」独立页：全量表格 + 可展开行查看完整字段，支持刷新与清空。
+
+接口：`GET /api/logs?limit=N`（默认 100，上限 1000）、`DELETE /api/logs`。
+
+---
+
 ## 配置说明
 
 关键配置项均支持环境变量覆盖（见 `application.yml`）：
@@ -347,7 +378,7 @@ cd backend
 mvn test
 ```
 
-覆盖 RRF 融合排序、安全闸门、PII 脱敏（含身份证/手机号正则顺序）与混合检索集成。
+覆盖 RRF 融合排序、安全闸门、PII 星号掩码（身份证/手机号/邮箱）与混合检索集成。
 
 ---
 
