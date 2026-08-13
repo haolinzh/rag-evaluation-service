@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Input, Button, Typography, Space, Tag, Spin } from 'antd';
-import { SendOutlined, UserOutlined, RobotOutlined } from '@ant-design/icons';
+import { Input, Button, Typography, Space, Tag, Spin, Select } from 'antd';
+import { SendOutlined, UserOutlined, RobotOutlined, PlusOutlined } from '@ant-design/icons';
 import { askQuestion } from '../api';
 import type { ChatResponse } from '../types';
 
@@ -16,30 +16,65 @@ interface Message {
   refusal?: boolean;
 }
 
+interface Session {
+  id: string;
+  title: string;
+  messages: Message[];
+}
+
 interface Props {
   retrievalMode: string;
 }
 
+const newSession = (): Session => ({
+  id: crypto.randomUUID(),
+  title: '新对话',
+  messages: [],
+});
+
 const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const initialRef = useRef<Session[] | null>(null);
+  if (initialRef.current === null) {
+    initialRef.current = [newSession()];
+  }
+
+  const [sessions, setSessions] = useState<Session[]>(initialRef.current);
+  const [activeId, setActiveId] = useState<string>(initialRef.current[0].id);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sessionId] = useState(() => crypto.randomUUID());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  const active = sessions.find(s => s.id === activeId) ?? sessions[0];
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [active?.messages]);
+
+  const updateSession = (id: string, updater: (s: Session) => Session) => {
+    setSessions(prev => prev.map(s => (s.id === id ? updater(s) : s)));
+  };
+
+  const handleNewSession = () => {
+    const s = newSession();
+    setSessions(prev => [s, ...prev]);
+    setActiveId(s.id);
+  };
 
   const handleSend = async () => {
     const q = input.trim();
-    if (!q || loading) return;
+    if (!q || loading || !active) return;
     setInput('');
     setLoading(true);
 
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: q };
-    setMessages(prev => [...prev, userMsg]);
+    updateSession(active.id, s => ({
+      ...s,
+      title: s.title === '新对话' ? (q.length > 20 ? q.slice(0, 20) + '…' : q) : s.title,
+      messages: [...s.messages, userMsg],
+    }));
 
     try {
-      const resp = await askQuestion(q, sessionId, retrievalMode);
+      const resp = await askQuestion(q, active.id, retrievalMode);
       const assistantMsg: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -48,12 +83,15 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
         retrievalMode: resp.retrievalMode,
         refusal: resp.refusal,
       };
-      setMessages(prev => [...prev, assistantMsg]);
+      updateSession(active.id, s => ({ ...s, messages: [...s.messages, assistantMsg] }));
     } catch {
-      setMessages(prev => [...prev, {
-        id: crypto.randomUUID(), role: 'assistant',
-        content: '抱歉，服务出错了，请稍后重试。',
-      }]);
+      updateSession(active.id, s => ({
+        ...s,
+        messages: [...s.messages, {
+          id: crypto.randomUUID(), role: 'assistant',
+          content: '抱歉，服务出错了，请稍后重试。',
+        }],
+      }));
     } finally {
       setLoading(false);
     }
@@ -61,15 +99,25 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <Select
+          value={activeId}
+          onChange={setActiveId}
+          style={{ flex: 1 }}
+          options={sessions.map(s => ({ value: s.id, label: s.title }))}
+        />
+        <Button icon={<PlusOutlined />} onClick={handleNewSession}>新建对话</Button>
+      </div>
+
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px', marginBottom: 12 }}>
-        {messages.length === 0 && (
+        {(!active || active.messages.length === 0) && (
           <div style={{ textAlign: 'center', color: '#999', marginTop: 120 }}>
             <RobotOutlined style={{ fontSize: 48 }} />
             <p>向知识库提问，开始对话</p>
             <Tag color="blue">检索模式: {retrievalMode}</Tag>
           </div>
         )}
-        {messages.map(msg => (
+        {active && active.messages.map(msg => (
           <div key={msg.id} style={{
             marginBottom: 16,
             display: 'flex', flexDirection: 'column',
