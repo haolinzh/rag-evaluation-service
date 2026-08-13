@@ -29,7 +29,8 @@ public class IndexBuilder {
     public void buildIndex(List<ChunkData> chunks) {
         System.out.println("Indexing " + chunks.size() + " chunks...");
 
-        int batchSize = 25;
+        // DashScope text-embedding-v3 rejects batches larger than 10
+        int batchSize = 10;
         for (int i = 0; i < chunks.size(); i += batchSize) {
             int end = Math.min(i + batchSize, chunks.size());
             List<ChunkData> batch = chunks.subList(i, end);
