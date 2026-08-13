@@ -1,6 +1,7 @@
 package com.rag.eval.service;
 
 import com.rag.eval.model.OpsMetrics;
+import com.rag.eval.model.OpsReport;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,30 @@ public class ReportService {
 
     public ReportService(MetricsCollector collector) {
         this.collector = collector;
+    }
+
+    public OpsReport getSummary() {
+        List<OpsMetrics> metrics = collector.snapshot();
+        if (metrics.isEmpty()) {
+            return new OpsReport(0, 0, 0, 0, 0, 0);
+        }
+
+        List<Long> latencies = metrics.stream()
+            .map(OpsMetrics::getTotalLatencyMs).sorted().toList();
+        long totalRequests = metrics.size();
+        long cacheHits = metrics.stream().filter(OpsMetrics::isCacheHit).count();
+        long refusals = metrics.stream().filter(OpsMetrics::isRefusal).count();
+        long totalTokens = metrics.stream()
+            .mapToLong(m -> m.getPromptTokens() + m.getCompletionTokens()).sum();
+
+        return new OpsReport(
+            totalRequests,
+            percentile(latencies, 0.50),
+            percentile(latencies, 0.95),
+            totalTokens,
+            totalRequests > 0 ? (double) cacheHits / totalRequests * 100 : 0,
+            totalRequests > 0 ? (double) refusals / totalRequests * 100 : 0
+        );
     }
 
     public String generateCsv() {
@@ -67,5 +92,12 @@ public class ReportService {
         } catch (Exception e) {
             return "Error generating report: " + e.getMessage();
         }
+    }
+
+    private long percentile(List<Long> sorted, double p) {
+        if (sorted.isEmpty()) return 0;
+        int idx = (int) Math.ceil(p * sorted.size()) - 1;
+        idx = Math.max(0, Math.min(idx, sorted.size() - 1));
+        return sorted.get(idx);
     }
 }

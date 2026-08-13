@@ -1,5 +1,6 @@
 package com.rag.eval.controller;
 
+import com.rag.eval.model.OpsReport;
 import com.rag.eval.service.ReportService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -18,6 +19,11 @@ public class ReportController {
 
     public ReportController(ReportService reportService) {
         this.reportService = reportService;
+    }
+
+    @GetMapping("/summary")
+    public OpsReport summary() {
+        return reportService.getSummary();
     }
 
     @GetMapping("/csv")

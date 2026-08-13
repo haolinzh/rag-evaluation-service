@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { DocumentMeta, ChatResponse, ChatMessage } from './types';
+import type { DocumentMeta, ChatResponse, ChatMessage, OpsReport } from './types';
 
 const api = axios.create({ baseURL: '/api' });
 
@@ -40,5 +40,10 @@ export async function getChatHistory(sessionId: string): Promise<ChatMessage[]> 
 
 export async function fetchReport(): Promise<Blob> {
   const { data } = await api.get('/report/csv', { responseType: 'blob' });
+  return data;
+}
+
+export async function fetchMetricsSummary(): Promise<OpsReport> {
+  const { data } = await api.get('/report/summary');
   return data;
 }

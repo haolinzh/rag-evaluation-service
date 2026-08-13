@@ -94,7 +94,7 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
                     <Text type="secondary" style={{ fontSize: 12 }}>来源: </Text>
                     {msg.sources.map((s, i) => (
                       <Tag key={i} color="blue" style={{ fontSize: 11, marginBottom: 2 }}>
-                        {s.fileName} ({(s.score * 100).toFixed(0)}%)
+                        {s.fileName}
                       </Tag>
                     ))}
                   </div>
