@@ -1,6 +1,8 @@
 package com.rag.eval.service;
 
 import com.rag.eval.model.SearchResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -9,6 +11,8 @@ import java.util.concurrent.CompletableFuture;
 
 @Service
 public class RetrievalService {
+
+    private static final Logger log = LoggerFactory.getLogger(RetrievalService.class);
 
     private final ElasticsearchService esService;
     private final VectorSearchService vectorService;
@@ -19,6 +23,7 @@ public class RetrievalService {
     private final int topK;
     private final int recallMultiplier;
     private final int rerankCandidates;
+    private final boolean rerankEnabled;
 
     public RetrievalService(ElasticsearchService esService,
                             VectorSearchService vectorService,
@@ -28,7 +33,8 @@ public class RetrievalService {
                             @Value("${retrieval.mode}") String mode,
                             @Value("${retrieval.top-k}") int topK,
                             @Value("${retrieval.recall-size-multiplier}") int recallMultiplier,
-                            @Value("${retrieval.rerank-candidates:20}") int rerankCandidates) {
+                            @Value("${retrieval.rerank-candidates:20}") int rerankCandidates,
+                            @Value("${retrieval.rerank-enabled:true}") boolean rerankEnabled) {
         this.esService = esService;
         this.vectorService = vectorService;
         this.rrfService = rrfService;
@@ -38,6 +44,7 @@ public class RetrievalService {
         this.topK = topK;
         this.recallMultiplier = recallMultiplier;
         this.rerankCandidates = rerankCandidates;
+        this.rerankEnabled = rerankEnabled;
     }
 
     public List<SearchResult> retrieve(String query, String requestedMode) {
@@ -60,6 +67,10 @@ public class RetrievalService {
         List<SearchResult> vectorResults = vectorFuture.join();
 
         if ("hybrid-rerank".equals(effectiveMode)) {
+            if (!rerankEnabled) {
+                log.warn("hybrid-rerank requested but rerank is disabled; falling back to RRF topK");
+                return rrfService.fuse(keywordResults, vectorResults, topK);
+            }
             List<SearchResult> fused = rrfService.fuse(keywordResults, vectorResults, rerankCandidates);
             return rerankService.rerank(query, fused, topK);
         }

@@ -282,7 +282,8 @@ retrieval:
   rrf-k: 60
   recall-size-multiplier: 3      # 每路召回 = topK * 3
   rerank-candidates: 20          # hybrid-rerank 时 RRF 先保留的候选数
-  similarity-threshold: 0.7
+  rerank-enabled: true           # 精排独立开关，false 时 hybrid-rerank 退化为纯 RRF
+  similarity-threshold: 0.4
 ```
 
 ---
@@ -385,7 +386,18 @@ cd backend
 mvn test
 ```
 
-覆盖 RRF 融合排序、安全闸门、PII 星号掩码（身份证/手机号/邮箱）与混合检索集成。
+覆盖 RRF 融合排序、安全闸门（含越界拒答）、PII 星号掩码（身份证/手机号/邮箱）与混合检索集成。
+
+---
+
+## 文档
+
+| 文档 | 说明 |
+|---|---|
+| [成本估算与模型选型](docs/COST_ESTIMATION.md) | DashScope 三模型选型理由与单次/月度成本估算 |
+| [日志字段字典](docs/LOG_FIELD_DICTIONARY.md) | `request_log` 表与指标 CSV 逐字段说明 + 样例 |
+| [评测报告](docs/EVALUATION_REPORT.md) | 22 题测试集、5 项指标、报告模板 |
+| [问题诊断指南](docs/TROUBLESHOOTING.md) | 按症状排查 + 定位命令 |
 
 ---
 

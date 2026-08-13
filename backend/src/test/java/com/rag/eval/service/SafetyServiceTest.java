@@ -9,12 +9,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SafetyServiceTest {
 
-    private final SafetyService safetyService = new SafetyService(0.7, List.of("violence", "hate"));
+    private final SafetyService safetyService =
+        new SafetyService(0.7, true, 0.85, List.of("violence", "hate"));
 
     @Test
     void evaluate_goodQuestion_allow() {
         var chunks = List.of(
-            SearchResult.builder().chunkId("A").score(0.85).build()
+            SearchResult.builder().chunkId("A").score(0.9).build()
         );
         var result = safetyService.evaluate("What is RAG?", chunks);
         assertTrue(result.allowed());
@@ -28,6 +29,17 @@ class SafetyServiceTest {
         var result = safetyService.evaluate("any question", chunks);
         assertFalse(result.allowed());
         assertEquals(SafetyService.Decision.REFUSE_LOW_CONFIDENCE, result.decision());
+    }
+
+    @Test
+    void evaluate_outOfScope_refuse() {
+        // Score between min-similarity (0.7) and out-of-scope threshold (0.85)
+        var chunks = List.of(
+            SearchResult.builder().chunkId("A").score(0.75).build()
+        );
+        var result = safetyService.evaluate("How do I bake a sourdough loaf?", chunks);
+        assertFalse(result.allowed());
+        assertEquals(SafetyService.Decision.REFUSE_OUT_OF_SCOPE, result.decision());
     }
 
     @Test

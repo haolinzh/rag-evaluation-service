@@ -11,11 +11,17 @@ import java.util.regex.Pattern;
 public class SafetyService {
 
     private final double minSimilarity;
+    private final boolean enableOutOfScopeCheck;
+    private final double outOfScopeThreshold;
     private final List<Pattern> forbiddenPatterns;
 
     public SafetyService(@Value("${safety.min-similarity}") double minSimilarity,
+                          @Value("${safety.enable-out-of-scope-check:false}") boolean enableOutOfScopeCheck,
+                          @Value("${safety.out-of-scope-threshold:0.55}") double outOfScopeThreshold,
                           @Value("${safety.forbidden-keywords}") List<String> forbiddenKeywords) {
         this.minSimilarity = minSimilarity;
+        this.enableOutOfScopeCheck = enableOutOfScopeCheck;
+        this.outOfScopeThreshold = outOfScopeThreshold;
         this.forbiddenPatterns = forbiddenKeywords.stream()
             .map(Pattern::compile)
             .toList();
@@ -46,6 +52,13 @@ public class SafetyService {
             .max().orElse(0.0);
         if (chunks.isEmpty() || maxScore < minSimilarity) {
             return new SafetyResult(Decision.REFUSE_LOW_CONFIDENCE, false);
+        }
+
+        // 3. Check out-of-scope: the question is syntactically fine and passes the
+        //    confidence gate, but its best semantic match is only marginal — a strong
+        //    signal the question belongs to a different domain than the knowledge base.
+        if (enableOutOfScopeCheck && maxScore < outOfScopeThreshold) {
+            return new SafetyResult(Decision.REFUSE_OUT_OF_SCOPE, false);
         }
 
         return new SafetyResult(Decision.ALLOW, true);
