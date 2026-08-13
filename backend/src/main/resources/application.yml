@@ -36,15 +36,12 @@ retrieval:
   top-k: 5
   recall-size-multiplier: 3
   rrf-k: 60
-  similarity-threshold: 0.7
+  similarity-threshold: 0.4
 
 safety:
-  min-similarity: 0.7
+  min-similarity: 0.4
   enable-out-of-scope-check: false
-  forbidden-keywords:
-    - "violence"
-    - "hate"
-    - "bomb"
+  forbidden-keywords: violence,hate,bomb
 
 pii:
   enabled: true

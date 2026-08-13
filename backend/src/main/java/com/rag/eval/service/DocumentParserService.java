@@ -75,9 +75,8 @@ public class DocumentParserService {
             }
 
             chunks.add(text.substring(start, end).trim());
+            if (end >= text.length()) break;
             start = end - overlap;
-            if (start < 0) start = 0;
-            if (start >= end) start = end; // prevent infinite loop
         }
         return chunks;
     }

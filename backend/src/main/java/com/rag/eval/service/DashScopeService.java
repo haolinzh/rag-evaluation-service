@@ -38,6 +38,7 @@ public class DashScopeService {
             GenerationParam param = GenerationParam.builder()
                 .model(chatModel)
                 .messages(messages)
+                .resultFormat(GenerationParam.ResultFormat.MESSAGE)
                 .temperature(0.3f)
                 .build();
 

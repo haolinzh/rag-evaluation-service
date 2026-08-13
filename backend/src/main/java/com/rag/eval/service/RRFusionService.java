@@ -34,7 +34,22 @@ public class RRFusionService {
             SearchResult r = vectorResults.get(i);
             double contribution = 1.0 / (rrfK + i + 1);
             rrfScores.merge(r.getChunkId(), contribution, Double::sum);
-            docLookup.putIfAbsent(r.getChunkId(), r);
+            SearchResult existing = docLookup.get(r.getChunkId());
+            if (existing == null) {
+                docLookup.put(r.getChunkId(), r);
+            } else {
+                // Preserve the raw semantic similarity (from the vector channel)
+                // onto chunks also matched by keyword search, so the confidence
+                // gate has a 0..1 signal instead of falling back to the RRF score.
+                Double semantic = r.getSourceDetails() != null ? r.getSourceDetails().getSemanticScore() : null;
+                if (semantic != null) {
+                    if (existing.getSourceDetails() == null) {
+                        existing.setSourceDetails(new SearchResult.SourceDetail(null, semantic, null));
+                    } else {
+                        existing.getSourceDetails().setSemanticScore(semantic);
+                    }
+                }
+            }
         }
 
         // Sort by RRF score descending, take topK

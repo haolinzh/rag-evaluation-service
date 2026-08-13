@@ -40,13 +40,23 @@ public class SafetyService {
             }
         }
 
-        // 2. Check confidence (max chunk score)
-        double maxScore = chunks.stream().mapToDouble(SearchResult::getScore).max().orElse(0.0);
+        // 2. Check confidence (max semantic similarity across chunks)
+        double maxScore = chunks.stream()
+            .mapToDouble(this::confidenceScore)
+            .max().orElse(0.0);
         if (chunks.isEmpty() || maxScore < minSimilarity) {
             return new SafetyResult(Decision.REFUSE_LOW_CONFIDENCE, false);
         }
 
         return new SafetyResult(Decision.ALLOW, true);
+    }
+
+    private double confidenceScore(SearchResult c) {
+        // Prefer the raw semantic similarity (0..1) over the RRF fusion score,
+        // which lives on a different scale (1/(k+rank)).
+        var d = c.getSourceDetails();
+        if (d != null && d.getSemanticScore() != null) return d.getSemanticScore();
+        return c.getScore();
     }
 
     public record SafetyResult(SafetyService.Decision decision, boolean allowed) {}
