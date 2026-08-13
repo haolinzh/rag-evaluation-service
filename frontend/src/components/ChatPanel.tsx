@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Input, Button, Typography, Space, Tag, Spin, Select } from 'antd';
 import { SendOutlined, UserOutlined, RobotOutlined, PlusOutlined } from '@ant-design/icons';
-import { askQuestion } from '../api';
-import type { ChatResponse } from '../types';
+import { askQuestion, getChatHistory } from '../api';
+import type { ChatResponse, ChatMessage } from '../types';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -20,31 +20,98 @@ interface Session {
   id: string;
   title: string;
   messages: Message[];
+  loaded: boolean;
 }
 
 interface Props {
   retrievalMode: string;
 }
 
+interface StoredSession {
+  id: string;
+  title: string;
+}
+
+const STORAGE_KEY = 'rag-chat-sessions';
+
 const newSession = (): Session => ({
   id: crypto.randomUUID(),
   title: '新对话',
   messages: [],
+  loaded: true,
 });
 
+const readStored = (): { sessions: StoredSession[]; activeId: string } | null => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed?.sessions) || parsed.sessions.length === 0) return null;
+    return { sessions: parsed.sessions, activeId: parsed.activeId ?? parsed.sessions[0].id };
+  } catch {
+    return null;
+  }
+};
+
+const writeStored = (sessions: Session[], activeId: string) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      sessions: sessions.map(s => ({ id: s.id, title: s.title })),
+      activeId,
+    }));
+  } catch {}
+};
+
 const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
-  const initialRef = useRef<Session[] | null>(null);
+  const initialRef = useRef<{ sessions: Session[]; activeId: string } | null>(null);
   if (initialRef.current === null) {
-    initialRef.current = [newSession()];
+    const stored = readStored();
+    if (stored) {
+      const sessions = stored.sessions.map(m => ({
+        id: m.id, title: m.title, messages: [], loaded: false,
+      }));
+      const activeId = sessions.some(s => s.id === stored.activeId)
+        ? stored.activeId : sessions[0].id;
+      initialRef.current = { sessions, activeId };
+    } else {
+      const s = newSession();
+      initialRef.current = { sessions: [s], activeId: s.id };
+    }
   }
 
-  const [sessions, setSessions] = useState<Session[]>(initialRef.current);
-  const [activeId, setActiveId] = useState<string>(initialRef.current[0].id);
+  const [sessions, setSessions] = useState<Session[]>(initialRef.current.sessions);
+  const [activeId, setActiveId] = useState<string>(initialRef.current.activeId);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const active = sessions.find(s => s.id === activeId) ?? sessions[0];
+
+  useEffect(() => {
+    writeStored(sessions, activeId);
+  }, [sessions, activeId]);
+
+  useEffect(() => {
+    const target = sessions.find(s => s.id === activeId);
+    if (!target || target.loaded) return;
+    getChatHistory(target.id)
+      .then(history => {
+        setSessions(prev => prev.map(s => s.id === target.id
+          ? {
+              ...s,
+              loaded: true,
+              messages: history.map((m: ChatMessage) => ({
+                id: String(m.id),
+                role: m.role as 'user' | 'assistant',
+                content: m.content,
+              })),
+            }
+          : s));
+      })
+      .catch(() => {
+        setSessions(prev => prev.map(s => (s.id === target.id ? { ...s, loaded: true } : s)));
+      });
+  }, [activeId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
