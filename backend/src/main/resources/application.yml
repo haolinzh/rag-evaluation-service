@@ -6,8 +6,8 @@ spring:
     name: rag-evaluation-service
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
+      max-file-size: 200MB
+      max-request-size: 200MB
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:5432/rag_eval
     username: ${DB_USER:rag}
