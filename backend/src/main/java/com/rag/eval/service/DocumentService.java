@@ -18,15 +18,17 @@ public class DocumentService {
     private final DocumentMetaRepo docRepo;
     private final VectorChunkRepo vectorChunkRepo;
     private final ElasticsearchService esService;
+    private final SemanticCacheService cacheService;
 
     public DocumentService(DocumentParserService parser, IndexBuilder indexBuilder,
                            DocumentMetaRepo docRepo, VectorChunkRepo vectorChunkRepo,
-                           ElasticsearchService esService) {
+                           ElasticsearchService esService, SemanticCacheService cacheService) {
         this.parser = parser;
         this.indexBuilder = indexBuilder;
         this.docRepo = docRepo;
         this.vectorChunkRepo = vectorChunkRepo;
         this.esService = esService;
+        this.cacheService = cacheService;
     }
 
     public DocumentMeta ingest(MultipartFile file) throws Exception {
@@ -59,6 +61,7 @@ public class DocumentService {
             vectorChunkRepo.deleteByFileName(meta.getFileName());
             esService.deleteByFileName(meta.getFileName());
             docRepo.delete(meta);
+            cacheService.clear();
         });
     }
 }

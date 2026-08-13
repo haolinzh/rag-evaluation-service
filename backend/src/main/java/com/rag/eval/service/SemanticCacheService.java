@@ -34,6 +34,13 @@ public class SemanticCacheService {
         redisTemplate.opsForValue().set(key, answer, ttlSeconds, TimeUnit.SECONDS);
     }
 
+    public void clear() {
+        Set<String> keys = redisTemplate.keys("cache:qa:*");
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
+    }
+
     private String cacheKey(String question) {
         // Simple normalization + hash for exact-match cache
         String normalized = question.toLowerCase().strip().replaceAll("\\s+", " ");

@@ -11,12 +11,19 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
 public class ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
+
+    private static final Pattern CITATION_PAT = Pattern.compile(
+        "《[^》]{1,80}》|【[^】]{1,120}】|（[^（）]{0,200}）|\\[[^\\[\\]]{0,120}\\]");
+
+    private static final Pattern FILENAME_PAT = Pattern.compile(
+        "[\\p{L}\\p{N}_.·\\-]{1,80}\\.(?:pdf|docx?|txt|md|pptx|csv|xlsx)", Pattern.CASE_INSENSITIVE);
 
     private final DashScopeService dashScope;
     private final RetrievalService retrievalService;
@@ -96,15 +103,19 @@ public class ChatService {
             String historyContext = !history.isEmpty()
                 ? "=== 对话历史 ===\n" + history.stream()
                     .limit(10)
-                    .map(m -> (m.getRole().equals("user") ? "用户: " : "助手: ") + m.getContent())
+                    .map(m -> {
+                        String content = m.getRole().equals("assistant")
+                            ? scrubCitations(m.getContent()) : m.getContent();
+                        return (m.getRole().equals("user") ? "用户: " : "助手: ") + content;
+                    })
                     .collect(Collectors.joining("\n"))
                     + "\n\n"
                 : "";
 
             String systemPrompt = """
-                你是一个专业的知识库助手。请基于以下文档内容回答用户问题。
+                你是一个专业的知识库助手。请严格基于下方【文档内容】回答用户问题。
                 如果文档内容不足以回答问题，请明确说明"该知识库中暂无相关信息"。
-                回答时请引用具体的来源文件名。
+                引用来源时，只能引用【文档内容】中出现的文件名，禁止引用对话历史、记忆或其他外部来源中的文件名。
 
                 %s=== 文档内容 ===
                 %s
@@ -160,6 +171,11 @@ public class ChatService {
 
     private String normalizeQuery(String query) {
         return query.toLowerCase().strip().replaceAll("\\s+", " ");
+    }
+
+    private String scrubCitations(String text) {
+        String scrubbed = CITATION_PAT.matcher(text).replaceAll("");
+        return FILENAME_PAT.matcher(scrubbed).replaceAll("").trim();
     }
 
     private int countTokens(String text) {
