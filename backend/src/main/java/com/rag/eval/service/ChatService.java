@@ -88,8 +88,9 @@ public class ChatService {
             if (cached != null) {
                 metrics.setCacheHit(true);
                 metrics.setTotalLatencyMs(0);
-                metricsCollector.complete(metrics);
                 ChatResponse cachedResponse = deserializeCached(cached, effectiveMode);
+                metrics.setAnswerCompliance(complianceScore(cachedResponse.getContent(), false));
+                metricsCollector.complete(metrics);
                 logRequest(metrics, question, cachedResponse.getContent(), "", 0, "success");
                 return cachedResponse;
             }
@@ -108,6 +109,7 @@ public class ChatService {
             if (!safe.allowed()) {
                 metrics.setRefusal(true);
                 metrics.setRefusalReason(safe.decision().name());
+                metrics.setAnswerCompliance(1.0);
                 metrics.setTotalLatencyMs(Duration.between(start, Instant.now()).toMillis());
                 metricsCollector.complete(metrics);
                 logRequest(metrics, question, safe.decision().message, hitDocuments, 0, "refused");
@@ -158,6 +160,7 @@ public class ChatService {
             int redactions = piiService.redactCount(answerText);
             metrics.setPiiRedactions(redactions);
             answerText = piiService.redact(answerText);
+            metrics.setAnswerCompliance(complianceScore(answerText, false));
 
             // 7. Final metrics
             metrics.setTotalLatencyMs(Duration.between(start, Instant.now()).toMillis());
@@ -224,6 +227,20 @@ public class ChatService {
         return (int) (text.length() / 1.5);
     }
 
+    private double complianceScore(String answer, boolean refusal) {
+        if (refusal) return 1.0;
+        if (answer == null || answer.isBlank()) return 0.0;
+        double score = 0.0;
+        if (answer.length() > 10) score += 0.3;
+        if (answer.length() > 50) score += 0.3;
+        String lower = answer.toLowerCase();
+        if (answer.contains("来源") || answer.contains("根据") || answer.contains("文档")
+                || lower.contains("knowledge")) {
+            score += 0.2;
+        }
+        return Math.min(1.0, score);
+    }
+
     private ChatMessage createMessage(String sessionId, String role, String content) {
         ChatMessage msg = new ChatMessage();
         msg.setSessionId(sessionId);
@@ -255,7 +272,7 @@ public class ChatService {
         RequestLog log = new RequestLog();
         log.setRequestId(m.getRequestId());
         log.setSessionId(m.getSessionId());
-        log.setQuestion(question);
+        log.setQuestion(piiService.redact(question));
         log.setAnswer(answer);
         log.setModel(chatModel);
         log.setRetrievalMode(m.getRetrievalMode());

@@ -57,6 +57,7 @@ export interface OpsReport {
   totalTokens: number;
   cacheHitRate: number;
   refusalRate: number;
+  answerComplianceRate: number;
 }
 
 export interface RequestLog {

@@ -8,5 +8,6 @@ public record OpsReport(
     long missP95LatencyMs,
     long totalTokens,
     double cacheHitRate,
-    double refusalRate
+    double refusalRate,
+    double answerComplianceRate
 ) {}

@@ -22,7 +22,7 @@ public class ReportService {
     public OpsReport getSummary() {
         List<OpsMetrics> metrics = collector.snapshot();
         if (metrics.isEmpty()) {
-            return new OpsReport(0, 0, 0, 0, 0, 0, 0, 0);
+            return new OpsReport(0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
         List<Long> latencies = metrics.stream()
@@ -35,6 +35,8 @@ public class ReportService {
         long refusals = metrics.stream().filter(OpsMetrics::isRefusal).count();
         long totalTokens = metrics.stream()
             .mapToLong(m -> m.getPromptTokens() + m.getCompletionTokens()).sum();
+        double complianceRate = metrics.stream()
+            .mapToDouble(OpsMetrics::getAnswerCompliance).average().orElse(0.0) * 100;
 
         return new OpsReport(
             totalRequests,
@@ -44,7 +46,8 @@ public class ReportService {
             percentile(missLatencies, 0.95),
             totalTokens,
             totalRequests > 0 ? (double) cacheHits / totalRequests * 100 : 0,
-            totalRequests > 0 ? (double) refusals / totalRequests * 100 : 0
+            totalRequests > 0 ? (double) refusals / totalRequests * 100 : 0,
+            complianceRate
         );
     }
 
@@ -60,7 +63,8 @@ public class ReportService {
                 .setHeader("requestId", "sessionId", "timestamp", "retrievalMode",
                     "retrievalLatencyMs", "generationLatencyMs", "totalLatencyMs",
                     "promptTokens", "completionTokens", "cacheHit", "refusal",
-                    "refusalReason", "piiRedactions", "chunksRetrieved", "maxChunkScore")
+                    "refusalReason", "piiRedactions", "chunksRetrieved", "maxChunkScore",
+                    "answerCompliance")
                 .build());
 
             for (OpsMetrics m : metrics) {
@@ -69,7 +73,8 @@ public class ReportService {
                     m.getRetrievalLatencyMs(), m.getGenerationLatencyMs(), m.getTotalLatencyMs(),
                     m.getPromptTokens(), m.getCompletionTokens(), m.isCacheHit(), m.isRefusal(),
                     m.getRefusalReason() != null ? m.getRefusalReason() : "",
-                    m.getPiiRedactions(), m.getChunksRetrieved(), m.getMaxChunkScore()
+                    m.getPiiRedactions(), m.getChunksRetrieved(), m.getMaxChunkScore(),
+                    m.getAnswerCompliance()
                 );
             }
 
@@ -85,13 +90,16 @@ public class ReportService {
             long cacheHits = metrics.stream().filter(OpsMetrics::isCacheHit).count();
             long refusals = metrics.stream().filter(OpsMetrics::isRefusal).count();
             long totalTokens = metrics.stream().mapToLong(m -> m.getPromptTokens() + m.getCompletionTokens()).sum();
+            double complianceRate = metrics.stream()
+                .mapToDouble(OpsMetrics::getAnswerCompliance).average().orElse(0.0) * 100;
 
             sw.append("\n# Summary\n");
-            sw.append("# totalRequests,p50LatencyMs,p95LatencyMs,totalTokens,cacheHitRate,refusalRate\n");
-            sw.append(String.format("# %d,%d,%d,%d,%.2f,%.2f\n",
+            sw.append("# totalRequests,p50LatencyMs,p95LatencyMs,totalTokens,cacheHitRate,refusalRate,answerComplianceRate\n");
+            sw.append(String.format("# %d,%d,%d,%d,%.2f,%.2f,%.2f\n",
                 totalRequests, p50, p95, totalTokens,
                 totalRequests > 0 ? (double) cacheHits / totalRequests : 0,
-                totalRequests > 0 ? (double) refusals / totalRequests : 0));
+                totalRequests > 0 ? (double) refusals / totalRequests : 0,
+                complianceRate));
 
             return sw.toString();
         } catch (Exception e) {

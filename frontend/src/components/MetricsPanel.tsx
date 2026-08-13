@@ -14,6 +14,7 @@ const MetricsPanel: React.FC = () => {
     totalTokens: 0,
     cacheHitRate: 0,
     refusalRate: 0,
+    answerComplianceRate: 0,
   });
 
   const refresh = useCallback(async () => {
@@ -98,6 +99,11 @@ const MetricsPanel: React.FC = () => {
         <Col span={12}>
           <Card size="small">
             <Statistic title="拒答率" value={metrics.refusalRate} suffix="%" precision={1} />
+          </Card>
+        </Col>
+        <Col span={12}>
+          <Card size="small">
+            <Statistic title="合规率" value={metrics.answerComplianceRate} suffix="%" precision={1} />
           </Card>
         </Col>
       </Row>

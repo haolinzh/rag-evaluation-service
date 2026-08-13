@@ -21,4 +21,5 @@ public class OpsMetrics {
     private int piiRedactions;
     private int chunksRetrieved;
     private double maxChunkScore;
+    private double answerCompliance;
 }
