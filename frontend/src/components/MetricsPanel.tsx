@@ -9,6 +9,8 @@ const MetricsPanel: React.FC = () => {
     totalRequests: 0,
     p50LatencyMs: 0,
     p95LatencyMs: 0,
+    missP50LatencyMs: 0,
+    missP95LatencyMs: 0,
     totalTokens: 0,
     cacheHitRate: 0,
     refusalRate: 0,
@@ -51,12 +53,22 @@ const MetricsPanel: React.FC = () => {
       <Row gutter={[12, 12]}>
         <Col span={12}>
           <Card size="small">
-            <Statistic title="P50 延迟" value={metrics.p50LatencyMs} suffix="ms" precision={0} />
+            <Statistic title="P50 延迟（总）" value={metrics.p50LatencyMs} suffix="ms" precision={0} />
           </Card>
         </Col>
         <Col span={12}>
           <Card size="small">
-            <Statistic title="P95 延迟" value={metrics.p95LatencyMs} suffix="ms" precision={0} />
+            <Statistic title="P95 延迟（总）" value={metrics.p95LatencyMs} suffix="ms" precision={0} />
+          </Card>
+        </Col>
+        <Col span={12}>
+          <Card size="small">
+            <Statistic title="P50 延迟（未命中缓存）" value={metrics.missP50LatencyMs} suffix="ms" precision={0} />
+          </Card>
+        </Col>
+        <Col span={12}>
+          <Card size="small">
+            <Statistic title="P95 延迟（未命中缓存）" value={metrics.missP95LatencyMs} suffix="ms" precision={0} />
           </Card>
         </Col>
         <Col span={12}>

@@ -33,6 +33,8 @@ export interface OpsReport {
   totalRequests: number;
   p50LatencyMs: number;
   p95LatencyMs: number;
+  missP50LatencyMs: number;
+  missP95LatencyMs: number;
   totalTokens: number;
   cacheHitRate: number;
   refusalRate: number;

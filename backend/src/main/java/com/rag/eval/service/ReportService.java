@@ -22,10 +22,13 @@ public class ReportService {
     public OpsReport getSummary() {
         List<OpsMetrics> metrics = collector.snapshot();
         if (metrics.isEmpty()) {
-            return new OpsReport(0, 0, 0, 0, 0, 0);
+            return new OpsReport(0, 0, 0, 0, 0, 0, 0, 0);
         }
 
         List<Long> latencies = metrics.stream()
+            .map(OpsMetrics::getTotalLatencyMs).sorted().toList();
+        List<Long> missLatencies = metrics.stream()
+            .filter(m -> !m.isCacheHit())
             .map(OpsMetrics::getTotalLatencyMs).sorted().toList();
         long totalRequests = metrics.size();
         long cacheHits = metrics.stream().filter(OpsMetrics::isCacheHit).count();
@@ -37,6 +40,8 @@ public class ReportService {
             totalRequests,
             percentile(latencies, 0.50),
             percentile(latencies, 0.95),
+            percentile(missLatencies, 0.50),
+            percentile(missLatencies, 0.95),
             totalTokens,
             totalRequests > 0 ? (double) cacheHits / totalRequests * 100 : 0,
             totalRequests > 0 ? (double) refusals / totalRequests * 100 : 0
