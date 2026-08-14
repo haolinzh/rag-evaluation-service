@@ -11,7 +11,7 @@ public record SystemConfigDto(
     int embeddingDimension
 ) {
     public record Retrieval(String mode, int topK, int recallSizeMultiplier, int rrfK,
-                            int rerankCandidates, boolean rerankEnabled, double similarityThreshold) {}
+                            int rerankCandidates, double similarityThreshold) {}
 
     public record Models(String chat, String embedding, String rerank) {}
 

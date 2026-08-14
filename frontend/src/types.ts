@@ -107,7 +107,6 @@ export interface SystemConfig {
     recallSizeMultiplier: number;
     rrfK: number;
     rerankCandidates: number;
-    rerankEnabled: boolean;
     similarityThreshold: number;
   };
   models: { chat: string; embedding: string; rerank: string };

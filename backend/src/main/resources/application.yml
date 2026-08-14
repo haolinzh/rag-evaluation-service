@@ -38,7 +38,6 @@ retrieval:
   recall-size-multiplier: 3
   rrf-k: 60
   rerank-candidates: 20
-  rerank-enabled: true
   similarity-threshold: 0.4
 
 safety:

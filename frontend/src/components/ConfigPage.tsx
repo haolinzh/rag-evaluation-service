@@ -14,7 +14,6 @@ interface FormValues {
   recallSizeMultiplier: number;
   rrfK: number;
   rerankCandidates: number;
-  rerankEnabled: boolean;
   similarityThreshold: number;
   chat: string;
   embedding: string;
@@ -44,7 +43,6 @@ const ConfigPage: React.FC<Props> = ({ onBack }) => {
           recallSizeMultiplier: c.retrieval.recallSizeMultiplier,
           rrfK: c.retrieval.rrfK,
           rerankCandidates: c.retrieval.rerankCandidates,
-          rerankEnabled: c.retrieval.rerankEnabled,
           similarityThreshold: c.retrieval.similarityThreshold,
           chat: c.models.chat,
           embedding: c.models.embedding,
@@ -79,7 +77,6 @@ const ConfigPage: React.FC<Props> = ({ onBack }) => {
         recallSizeMultiplier: v.recallSizeMultiplier,
         rrfK: v.rrfK,
         rerankCandidates: v.rerankCandidates,
-        rerankEnabled: v.rerankEnabled,
         similarityThreshold: v.similarityThreshold,
       },
       models: { chat: v.chat, embedding: v.embedding, rerank: v.rerank },
@@ -157,11 +154,6 @@ const ConfigPage: React.FC<Props> = ({ onBack }) => {
             <Col span={8}>
               <Form.Item label="相似度阈值 (similarity-threshold)" name="similarityThreshold" rules={[{ required: true }]}>
                 <InputNumber min={0} max={1} step={0.01} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item label="启用精排" name="rerankEnabled" valuePropName="checked">
-                <Switch />
               </Form.Item>
             </Col>
           </Row>

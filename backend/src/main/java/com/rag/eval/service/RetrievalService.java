@@ -49,7 +49,6 @@ public class RetrievalService {
         int topK = config.getInt("retrieval.top-k", 5);
         int recallMultiplier = config.getInt("retrieval.recall-size-multiplier", 3);
         int rerankCandidates = config.getInt("retrieval.rerank-candidates", 20);
-        boolean rerankEnabled = config.getBool("retrieval.rerank-enabled", true);
 
         Instant embStart = Instant.now();
         String queryEmb = embedQuery(query);
@@ -89,14 +88,6 @@ public class RetrievalService {
         int overlap = overlapCount(keywordResults, vectorResults);
 
         if ("hybrid-rerank".equals(effectiveMode)) {
-            if (!rerankEnabled) {
-                log.warn("hybrid-rerank requested but rerank is disabled; falling back to RRF topK");
-                List<SearchResult> fused = rrfService.fuse(keywordResults, vectorResults, topK);
-                logRetrieval(effectiveMode, keywordResults.size(), vectorResults.size(), overlap,
-                    embeddingLatencyMs, keywordLatency.get(), vectorLatency.get(), 0, fused);
-                return new RetrievalResult(fused, keywordResults.size(), vectorResults.size(), overlap,
-                    embeddingLatencyMs, keywordLatency.get(), vectorLatency.get(), 0);
-            }
             List<SearchResult> fused = rrfService.fuse(keywordResults, vectorResults, rerankCandidates);
             Instant rerankStart = Instant.now();
             List<SearchResult> reranked = rerankService.rerank(query, fused, topK);

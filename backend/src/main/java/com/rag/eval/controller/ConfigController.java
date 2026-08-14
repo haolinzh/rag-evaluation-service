@@ -19,7 +19,6 @@ public class ConfigController {
     private static final String K_RECALL = "retrieval.recall-size-multiplier";
     private static final String K_RRF_K = "retrieval.rrf-k";
     private static final String K_RERANK_CAND = "retrieval.rerank-candidates";
-    private static final String K_RERANK_ENABLED = "retrieval.rerank-enabled";
     private static final String K_SIM_THRESHOLD = "retrieval.similarity-threshold";
     private static final String K_CHAT_MODEL = "dashscope.chat-model";
     private static final String K_EMB_MODEL = "dashscope.embedding-model";
@@ -78,7 +77,6 @@ public class ConfigController {
         changes.put(K_RECALL, String.valueOf(r.recallSizeMultiplier()));
         changes.put(K_RRF_K, String.valueOf(r.rrfK()));
         changes.put(K_RERANK_CAND, String.valueOf(r.rerankCandidates()));
-        changes.put(K_RERANK_ENABLED, String.valueOf(r.rerankEnabled()));
         changes.put(K_SIM_THRESHOLD, String.valueOf(r.similarityThreshold()));
         changes.put(K_CHAT_MODEL, m.chat());
         changes.put(K_EMB_MODEL, m.embedding());
@@ -102,7 +100,6 @@ public class ConfigController {
                 config.getInt(K_RECALL, 3),
                 config.getInt(K_RRF_K, 60),
                 config.getInt(K_RERANK_CAND, 20),
-                config.getBool(K_RERANK_ENABLED, true),
                 config.getDouble(K_SIM_THRESHOLD, 0.4)),
             new SystemConfigDto.Models(
                 config.get(K_CHAT_MODEL, "qwen-plus"),
