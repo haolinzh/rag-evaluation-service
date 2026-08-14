@@ -6,11 +6,23 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class SafetyServiceTest {
 
+    private static SafetyService safetyService(double minSim, boolean outOfScope, double threshold,
+                                              List<String> keywords) {
+        ConfigService config = mock(ConfigService.class);
+        when(config.getDouble("safety.min-similarity", 0.4)).thenReturn(minSim);
+        when(config.getBool("safety.enable-out-of-scope-check", true)).thenReturn(outOfScope);
+        when(config.getDouble("safety.out-of-scope-threshold", 0.55)).thenReturn(threshold);
+        when(config.getList("safety.forbidden-keywords")).thenReturn(keywords);
+        return new SafetyService(config);
+    }
+
     private final SafetyService safetyService =
-        new SafetyService(0.7, true, 0.85, List.of("violence", "hate"));
+        safetyService(0.7, true, 0.85, List.of("violence", "hate"));
 
     @Test
     void evaluate_goodQuestion_allow() {

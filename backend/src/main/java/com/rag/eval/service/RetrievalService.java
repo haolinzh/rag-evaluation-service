@@ -3,7 +3,6 @@ package com.rag.eval.service;
 import com.rag.eval.model.SearchResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -29,36 +28,28 @@ public class RetrievalService {
     private final RRFusionService rrfService;
     private final RerankService rerankService;
     private final DashScopeService dashScope;
-    private final String mode;
-    private final int topK;
-    private final int recallMultiplier;
-    private final int rerankCandidates;
-    private final boolean rerankEnabled;
+    private final ConfigService config;
 
     public RetrievalService(ElasticsearchService esService,
                             VectorSearchService vectorService,
                             RRFusionService rrfService,
                             RerankService rerankService,
                             DashScopeService dashScope,
-                            @Value("${retrieval.mode}") String mode,
-                            @Value("${retrieval.top-k}") int topK,
-                            @Value("${retrieval.recall-size-multiplier}") int recallMultiplier,
-                            @Value("${retrieval.rerank-candidates:20}") int rerankCandidates,
-                            @Value("${retrieval.rerank-enabled:true}") boolean rerankEnabled) {
+                            ConfigService config) {
         this.esService = esService;
         this.vectorService = vectorService;
         this.rrfService = rrfService;
         this.rerankService = rerankService;
         this.dashScope = dashScope;
-        this.mode = mode;
-        this.topK = topK;
-        this.recallMultiplier = recallMultiplier;
-        this.rerankCandidates = rerankCandidates;
-        this.rerankEnabled = rerankEnabled;
+        this.config = config;
     }
 
     public RetrievalResult retrieve(String query, String requestedMode) {
         String effectiveMode = resolveMode(requestedMode);
+        int topK = config.getInt("retrieval.top-k", 5);
+        int recallMultiplier = config.getInt("retrieval.recall-size-multiplier", 3);
+        int rerankCandidates = config.getInt("retrieval.rerank-candidates", 20);
+        boolean rerankEnabled = config.getBool("retrieval.rerank-enabled", true);
 
         Instant embStart = Instant.now();
         String queryEmb = embedQuery(query);
@@ -165,11 +156,11 @@ public class RetrievalService {
                 || "hybrid-rerank".equalsIgnoreCase(requestedMode)) {
             return requestedMode.toLowerCase();
         }
-        return mode;
+        return config.get("retrieval.mode", "hybrid");
     }
 
     public String getMode() {
-        return mode;
+        return config.get("retrieval.mode", "hybrid");
     }
 
     private String embedQuery(String query) {

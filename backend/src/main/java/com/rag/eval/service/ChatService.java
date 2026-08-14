@@ -7,7 +7,6 @@ import com.rag.eval.repository.RequestLogRepo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,7 +44,6 @@ public class ChatService {
     private final ChatHistoryRepo historyRepo;
     private final RequestLogRepo requestLogRepo;
     private final ObjectMapper objectMapper;
-    private final String chatModel;
 
     public ChatService(DashScopeService dashScope,
                        RetrievalService retrievalService,
@@ -55,8 +53,7 @@ public class ChatService {
                        MetricsCollector metricsCollector,
                        ChatHistoryRepo historyRepo,
                        RequestLogRepo requestLogRepo,
-                       ObjectMapper objectMapper,
-                       @Value("${dashscope.chat-model}") String chatModel) {
+                       ObjectMapper objectMapper) {
         this.dashScope = dashScope;
         this.retrievalService = retrievalService;
         this.safetyService = safetyService;
@@ -66,7 +63,6 @@ public class ChatService {
         this.historyRepo = historyRepo;
         this.requestLogRepo = requestLogRepo;
         this.objectMapper = objectMapper;
-        this.chatModel = chatModel;
     }
 
     public ChatResponse ask(String question, String sessionId, String mode) {
@@ -187,7 +183,7 @@ public class ChatService {
 
             Map<String, Object> genFields = new LinkedHashMap<>();
             genFields.put("event", "generation");
-            genFields.put("model", chatModel);
+            genFields.put("model", dashScope.getChatModel());
             genFields.put("prompt_tokens", gen.promptTokens());
             genFields.put("completion_tokens", gen.completionTokens());
             genFields.put("generation_latency_ms", metrics.getGenerationLatencyMs());
@@ -227,7 +223,7 @@ public class ChatService {
             Map<String, Object> completeFields = new LinkedHashMap<>();
             completeFields.put("event", "chat_completed");
             completeFields.put("status", "success");
-            completeFields.put("model", chatModel);
+            completeFields.put("model", dashScope.getChatModel());
             completeFields.put("latency_total_ms", metrics.getTotalLatencyMs());
             completeFields.put("latency_retrieval_ms", metrics.getRetrievalLatencyMs());
             completeFields.put("latency_generation_ms", metrics.getGenerationLatencyMs());
@@ -331,7 +327,7 @@ public class ChatService {
         log.setSessionId(m.getSessionId());
         log.setQuestion(piiService.redact(question));
         log.setAnswer(answer);
-        log.setModel(chatModel);
+        log.setModel(dashScope.getChatModel());
         log.setRetrievalMode(m.getRetrievalMode());
         log.setHitDocuments(hitDocuments);
         log.setResponseTimeMs(m.getTotalLatencyMs());

@@ -1,20 +1,29 @@
 package com.rag.eval.integration;
 
 import com.rag.eval.model.SearchResult;
+import com.rag.eval.service.ConfigService;
 import com.rag.eval.service.RRFusionService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class RetrievalIntegrationTest {
+
+    private static RRFusionService rrf() {
+        ConfigService config = mock(ConfigService.class);
+        when(config.getInt("retrieval.rrf-k", 60)).thenReturn(60);
+        return new RRFusionService(config);
+    }
 
     @Test
     void fullRRFPipeline_mergeAndRank() {
         // Simulates a full retrieval pipeline: keyword + vector → RRF fusion
 
-        var rrf = new RRFusionService(60);
+        var rrf = rrf();
 
         // Keyword search results (simulated)
         var kwResults = List.of(
@@ -48,7 +57,7 @@ class RetrievalIntegrationTest {
 
     @Test
     void partialOverlap_resultsStillRanked() {
-        var rrf = new RRFusionService(60);
+        var rrf = rrf();
 
         var kwResults = List.of(
             result("A", "a.pdf", "content A", 0.9, "keyword")

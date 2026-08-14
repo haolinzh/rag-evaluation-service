@@ -1,6 +1,5 @@
 package com.rag.eval.service;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -11,26 +10,24 @@ import java.util.concurrent.TimeUnit;
 public class SemanticCacheService {
 
     private final RedisTemplate<String, String> redisTemplate;
-    private final boolean enabled;
-    private final long ttlSeconds;
+    private final ConfigService config;
 
     public SemanticCacheService(RedisTemplate<String, String> redisTemplate,
-                                 @Value("${cache.semantic.enabled}") boolean enabled,
-                                 @Value("${cache.semantic.ttl-seconds}") long ttlSeconds) {
+                                 ConfigService config) {
         this.redisTemplate = redisTemplate;
-        this.enabled = enabled;
-        this.ttlSeconds = ttlSeconds;
+        this.config = config;
     }
 
     public String lookup(String normalizedQuestion, String mode) {
-        if (!enabled) return null;
+        if (!config.getBool("cache.semantic.enabled", true)) return null;
         String key = cacheKey(normalizedQuestion, mode);
         return redisTemplate.opsForValue().get(key);
     }
 
     public void store(String normalizedQuestion, String mode, String answer) {
-        if (!enabled) return;
+        if (!config.getBool("cache.semantic.enabled", true)) return;
         String key = cacheKey(normalizedQuestion, mode);
+        long ttlSeconds = config.getInt("cache.semantic.ttl-seconds", 3600);
         redisTemplate.opsForValue().set(key, answer, ttlSeconds, TimeUnit.SECONDS);
     }
 

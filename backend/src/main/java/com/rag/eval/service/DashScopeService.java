@@ -11,7 +11,6 @@ import com.alibaba.dashscope.embeddings.TextEmbeddingParam;
 import com.alibaba.dashscope.embeddings.TextEmbeddingResult;
 import com.alibaba.dashscope.exception.InputRequiredException;
 import com.alibaba.dashscope.exception.NoApiKeyException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -20,16 +19,17 @@ import java.util.List;
 @Service
 public class DashScopeService {
 
-    private final String chatModel;
-    private final String embeddingModel;
+    private final ConfigService config;
 
-    public DashScopeService(@Value("${dashscope.chat-model}") String chatModel,
-                             @Value("${dashscope.embedding-model}") String embeddingModel) {
-        this.chatModel = chatModel;
-        this.embeddingModel = embeddingModel;
+    public DashScopeService(ConfigService config) {
+        this.config = config;
     }
 
     public record ChatResult(String content, int promptTokens, int completionTokens) {}
+
+    public String getChatModel() {
+        return config.get("dashscope.chat-model", "qwen-plus");
+    }
 
     public ChatResult chat(String systemPrompt, String userMessage) {
         try {
@@ -39,7 +39,7 @@ public class DashScopeService {
             );
 
             GenerationParam param = GenerationParam.builder()
-                .model(chatModel)
+                .model(getChatModel())
                 .messages(messages)
                 .resultFormat(GenerationParam.ResultFormat.MESSAGE)
                 .temperature(0.3f)
@@ -61,7 +61,7 @@ public class DashScopeService {
     public List<Double> embed(String text) {
         try {
             TextEmbeddingParam param = TextEmbeddingParam.builder()
-                .model(embeddingModel)
+                .model(config.get("dashscope.embedding-model", "text-embedding-v3"))
                 .texts(List.of(text))
                 .build();
             TextEmbeddingResult result = new TextEmbedding().call(param);
@@ -78,7 +78,7 @@ public class DashScopeService {
     public List<List<Double>> embedBatch(List<String> texts) {
         try {
             TextEmbeddingParam param = TextEmbeddingParam.builder()
-                .model(embeddingModel)
+                .model(config.get("dashscope.embedding-model", "text-embedding-v3"))
                 .texts(texts)
                 .build();
             TextEmbeddingResult result = new TextEmbedding().call(param);

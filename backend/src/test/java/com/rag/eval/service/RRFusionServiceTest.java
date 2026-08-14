@@ -6,10 +6,18 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class RRFusionServiceTest {
 
-    private final RRFusionService rrfService = new RRFusionService(60);
+    private static RRFusionService rrfWithK(int k) {
+        ConfigService config = mock(ConfigService.class);
+        when(config.getInt("retrieval.rrf-k", 60)).thenReturn(k);
+        return new RRFusionService(config);
+    }
+
+    private final RRFusionService rrfService = rrfWithK(60);
 
     @Test
     void fuse_twoLists_returnsTopKResults() {
@@ -62,7 +70,7 @@ class RRFusionServiceTest {
 
     @Test
     void rrfK_affectsScore() {
-        RRFusionService largeK = new RRFusionService(100);
+        RRFusionService largeK = rrfWithK(100);
         var kw = List.of(
             SearchResult.builder().chunkId("A").fileName("f.pdf").content("c").score(0.9).source("keyword").build()
         );

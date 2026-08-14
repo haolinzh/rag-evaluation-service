@@ -26,14 +26,14 @@ public class RerankService {
         "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank";
 
     private final String apiKey;
-    private final String model;
+    private final ConfigService config;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     public RerankService(@Value("${dashscope.api-key}") String apiKey,
-                         @Value("${dashscope.rerank-model:qwen3-rerank}") String model) {
+                         ConfigService config) {
         this.apiKey = apiKey;
-        this.model = model;
+        this.config = config;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -48,7 +48,7 @@ public class RerankService {
 
         try {
             String json = objectMapper.writeValueAsString(Map.of(
-                "model", model,
+                "model", config.get("dashscope.rerank-model", "qwen3-rerank"),
                 "input", Map.of("query", query, "documents", documents),
                 "parameters", Map.of("top_n", limit, "return_documents", false)
             ));

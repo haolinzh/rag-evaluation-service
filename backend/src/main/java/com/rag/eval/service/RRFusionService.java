@@ -1,7 +1,6 @@
 package com.rag.eval.service;
 
 import com.rag.eval.model.SearchResult;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -10,14 +9,15 @@ import java.util.stream.Collectors;
 @Service
 public class RRFusionService {
 
-    private final int rrfK;
+    private final ConfigService config;
 
-    public RRFusionService(@Value("${retrieval.rrf-k}") int rrfK) {
-        this.rrfK = rrfK;
+    public RRFusionService(ConfigService config) {
+        this.config = config;
     }
 
     public List<SearchResult> fuse(List<SearchResult> keywordResults,
                                     List<SearchResult> vectorResults, int topK) {
+        int rrfK = config.getInt("retrieval.rrf-k", 60);
         Map<String, Double> rrfScores = new LinkedHashMap<>();
         Map<String, SearchResult> docLookup = new LinkedHashMap<>();
 

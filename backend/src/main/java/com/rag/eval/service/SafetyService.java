@@ -1,7 +1,6 @@
 package com.rag.eval.service;
 
 import com.rag.eval.model.SearchResult;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -10,21 +9,10 @@ import java.util.regex.Pattern;
 @Service
 public class SafetyService {
 
-    private final double minSimilarity;
-    private final boolean enableOutOfScopeCheck;
-    private final double outOfScopeThreshold;
-    private final List<Pattern> forbiddenPatterns;
+    private final ConfigService config;
 
-    public SafetyService(@Value("${safety.min-similarity}") double minSimilarity,
-                          @Value("${safety.enable-out-of-scope-check:false}") boolean enableOutOfScopeCheck,
-                          @Value("${safety.out-of-scope-threshold:0.55}") double outOfScopeThreshold,
-                          @Value("${safety.forbidden-keywords}") List<String> forbiddenKeywords) {
-        this.minSimilarity = minSimilarity;
-        this.enableOutOfScopeCheck = enableOutOfScopeCheck;
-        this.outOfScopeThreshold = outOfScopeThreshold;
-        this.forbiddenPatterns = forbiddenKeywords.stream()
-            .map(Pattern::compile)
-            .toList();
+    public SafetyService(ConfigService config) {
+        this.config = config;
     }
 
     public enum Decision {
@@ -39,9 +27,13 @@ public class SafetyService {
     }
 
     public SafetyResult evaluate(String question, List<SearchResult> chunks) {
+        double minSimilarity = config.getDouble("safety.min-similarity", 0.4);
+        boolean enableOutOfScopeCheck = config.getBool("safety.enable-out-of-scope-check", true);
+        double outOfScopeThreshold = config.getDouble("safety.out-of-scope-threshold", 0.55);
+
         // 1. Check forbidden keywords
-        for (Pattern p : forbiddenPatterns) {
-            if (p.matcher(question.toLowerCase()).find()) {
+        for (String kw : config.getList("safety.forbidden-keywords")) {
+            if (Pattern.compile(kw).matcher(question.toLowerCase()).find()) {
                 return new SafetyResult(Decision.REFUSE_SAFETY_VIOLATION, false);
             }
         }

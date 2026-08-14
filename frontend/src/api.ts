@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { DocumentMeta, ChatResponse, ChatMessage, OpsReport, ChunkConfig, ChunkPreview, RequestLog } from './types';
+import type { DocumentMeta, ChatResponse, ChatMessage, OpsReport, ChunkConfig, ChunkPreview, RequestLog, SystemConfig } from './types';
 
 const api = axios.create({ baseURL: '/api' });
 
@@ -73,4 +73,14 @@ export async function fetchLogs(limit = 100): Promise<RequestLog[]> {
 
 export async function clearLogs(): Promise<void> {
   await api.delete('/logs');
+}
+
+export async function fetchConfig(): Promise<SystemConfig> {
+  const { data } = await api.get('/config');
+  return data;
+}
+
+export async function updateConfig(config: SystemConfig): Promise<SystemConfig> {
+  const { data } = await api.put('/config', config);
+  return data;
 }

@@ -92,3 +92,32 @@ export interface RequestLog {
   cacheLookupLatencyMs: number;
   status: string;
 }
+
+export interface ModelOption {
+  group: 'chat' | 'embedding' | 'rerank';
+  id: string;
+  label: string;
+  dimensions: number | null;
+}
+
+export interface SystemConfig {
+  retrieval: {
+    mode: string;
+    topK: number;
+    recallSizeMultiplier: number;
+    rrfK: number;
+    rerankCandidates: number;
+    rerankEnabled: boolean;
+    similarityThreshold: number;
+  };
+  models: { chat: string; embedding: string; rerank: string };
+  safety: {
+    minSimilarity: number;
+    enableOutOfScopeCheck: boolean;
+    outOfScopeThreshold: number;
+    forbiddenKeywords: string;
+  };
+  cache: { enabled: boolean; ttlSeconds: number };
+  modelOptions: ModelOption[];
+  embeddingDimension: number;
+}

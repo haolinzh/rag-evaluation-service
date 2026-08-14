@@ -2,7 +2,6 @@ package com.rag.eval.service;
 
 import com.rag.eval.model.SearchResult;
 import com.rag.eval.repository.VectorChunkRepo;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,15 +10,15 @@ import java.util.List;
 public class VectorSearchService {
 
     private final VectorChunkRepo vectorChunkRepo;
-    private final double threshold;
+    private final ConfigService config;
 
-    public VectorSearchService(VectorChunkRepo vectorChunkRepo,
-                                @Value("${retrieval.similarity-threshold}") double threshold) {
+    public VectorSearchService(VectorChunkRepo vectorChunkRepo, ConfigService config) {
         this.vectorChunkRepo = vectorChunkRepo;
-        this.threshold = threshold;
+        this.config = config;
     }
 
     public List<SearchResult> semanticSearch(String queryEmbedding, int topK) {
+        double threshold = config.getDouble("retrieval.similarity-threshold", 0.4);
         List<VectorChunkRepo.VectorSearchRow> rows =
             vectorChunkRepo.similaritySearch(queryEmbedding, threshold, topK);
 
