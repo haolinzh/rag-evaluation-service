@@ -29,6 +29,12 @@ public class ChatMessage {
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "retrieval_mode", length = 32)
+    private String retrievalMode;
+
+    @Column(columnDefinition = "TEXT")
+    private String sources;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

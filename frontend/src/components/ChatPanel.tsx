@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Input, Button, Typography, Space, Tag, Spin } from 'antd';
 import { SendOutlined, UserOutlined, RobotOutlined, PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { askQuestion, getChatHistory, deleteChatHistory } from '../api';
-import type { ChatResponse, ChatMessage } from '../types';
+import type { ChatResponse, ChatMessage, Source } from '../types';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -62,6 +62,16 @@ const writeStored = (sessions: Session[], activeId: string) => {
   } catch {}
 };
 
+const parseSources = (raw?: string | null): Source[] | undefined => {
+  if (!raw) return undefined;
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? (arr as Source[]) : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
   const initialRef = useRef<{ sessions: Session[]; activeId: string } | null>(null);
   if (initialRef.current === null) {
@@ -107,6 +117,8 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
                 id: String(m.id),
                 role: m.role as 'user' | 'assistant',
                 content: m.content,
+                retrievalMode: m.retrievalMode ?? undefined,
+                sources: parseSources(m.sources),
               })),
             }
           : s));

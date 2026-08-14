@@ -46,6 +46,8 @@ export interface ChatMessage {
   role: string;
   content: string;
   createdAt: string;
+  retrievalMode?: string | null;
+  sources?: string | null;
 }
 
 export interface OpsReport {

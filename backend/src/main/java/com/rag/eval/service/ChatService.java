@@ -102,6 +102,11 @@ public class ChatService {
                 metrics.setAnswerCompliance(complianceScore(cachedResponse.getContent(), false));
                 metricsCollector.complete(metrics);
                 logRequest(metrics, question, cachedResponse.getContent(), "", 0, "success");
+
+                historyRepo.save(createMessage(sessionId, "user", question));
+                historyRepo.save(createAssistantMessage(sessionId, cachedResponse.getContent(),
+                    cachedResponse.getRetrievalMode(), cachedResponse.getSources()));
+
                 return cachedResponse;
             }
 
@@ -218,7 +223,7 @@ public class ChatService {
 
             // 10. Save history
             historyRepo.save(createMessage(sessionId, "user", question));
-            historyRepo.save(createMessage(sessionId, "assistant", answerText));
+            historyRepo.save(createAssistantMessage(sessionId, answerText, effectiveMode, sources));
 
             Map<String, Object> completeFields = new LinkedHashMap<>();
             completeFields.put("event", "chat_completed");
@@ -300,6 +305,22 @@ public class ChatService {
         msg.setRole(role);
         msg.setContent(content);
         return msg;
+    }
+
+    private ChatMessage createAssistantMessage(String sessionId, String content, String retrievalMode, List<Source> sources) {
+        ChatMessage msg = createMessage(sessionId, "assistant", content);
+        msg.setRetrievalMode(retrievalMode);
+        msg.setSources(serializeSources(sources));
+        return msg;
+    }
+
+    private String serializeSources(List<Source> sources) {
+        try {
+            return objectMapper.writeValueAsString(sources);
+        } catch (Exception e) {
+            log.warn("Failed to serialize sources", e);
+            return "[]";
+        }
     }
 
     private String serializeCached(ChatResponse response) {
