@@ -96,12 +96,20 @@ const LogManagement: React.FC<Props> = ({ onBack }) => {
               <Descriptions.Item label="总耗时">{r.responseTimeMs}ms</Descriptions.Item>
               <Descriptions.Item label="检索延迟">{r.retrievalLatencyMs}ms</Descriptions.Item>
               <Descriptions.Item label="生成延迟">{r.generationLatencyMs}ms</Descriptions.Item>
+              <Descriptions.Item label="Embedding 延迟">{r.embeddingLatencyMs}ms</Descriptions.Item>
+              <Descriptions.Item label="关键词检索延迟">{r.keywordLatencyMs}ms</Descriptions.Item>
+              <Descriptions.Item label="向量检索延迟">{r.vectorLatencyMs}ms</Descriptions.Item>
+              <Descriptions.Item label="重排延迟">{r.rerankLatencyMs}ms</Descriptions.Item>
+              <Descriptions.Item label="缓存查询延迟">{r.cacheLookupLatencyMs}ms</Descriptions.Item>
               <Descriptions.Item label="缓存命中">{r.cacheHit ? '是' : '否'}</Descriptions.Item>
               <Descriptions.Item label="拒答">{r.refusal ? `是（${r.refusalReason ?? ''}）` : '否'}</Descriptions.Item>
               <Descriptions.Item label="Token（提示/补全）">
                 {r.promptTokens} / {r.completionTokens}
               </Descriptions.Item>
               <Descriptions.Item label="召回 chunk 数">{r.chunksRetrieved}</Descriptions.Item>
+              <Descriptions.Item label="关键词召回数">{r.keywordCount}</Descriptions.Item>
+              <Descriptions.Item label="向量召回数">{r.vectorCount}</Descriptions.Item>
+              <Descriptions.Item label="重叠 chunk 数">{r.overlapCount}</Descriptions.Item>
               <Descriptions.Item label="最高 chunk 分">{r.maxChunkScore.toFixed(3)}</Descriptions.Item>
               <Descriptions.Item label="PII 脱敏数">{r.piiRedactions}</Descriptions.Item>
             </Descriptions>

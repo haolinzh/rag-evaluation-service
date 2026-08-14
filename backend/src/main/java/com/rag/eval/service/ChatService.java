@@ -13,10 +13,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static net.logstash.logback.argument.StructuredArguments.entries;
 
 @Service
 public class ChatService {
@@ -84,8 +88,18 @@ public class ChatService {
         try {
             // 1. Check semantic cache
             String normalized = normalizeQuery(question);
+            Instant cacheStart = Instant.now();
             String cached = cacheService.lookup(normalized, effectiveMode);
-            if (cached != null) {
+            boolean cacheHit = cached != null;
+            long cacheLookupLatencyMs = Duration.between(cacheStart, Instant.now()).toMillis();
+            metrics.setCacheLookupLatencyMs(cacheLookupLatencyMs);
+            Map<String, Object> cacheFields = new LinkedHashMap<>();
+            cacheFields.put("event", "cache");
+            cacheFields.put("hit", cacheHit);
+            cacheFields.put("lookup_latency_ms", cacheLookupLatencyMs);
+            cacheFields.put("mode", effectiveMode);
+            log.info("Cache lookup {}", entries(cacheFields));
+            if (cacheHit) {
                 metrics.setCacheHit(true);
                 metrics.setTotalLatencyMs(0);
                 ChatResponse cachedResponse = deserializeCached(cached, effectiveMode);
@@ -97,15 +111,29 @@ public class ChatService {
 
             // 2. Retrieve
             Instant retrievalStart = Instant.now();
-            List<SearchResult> chunks = retrievalService.retrieve(question, effectiveMode);
+            RetrievalService.RetrievalResult rr = retrievalService.retrieve(question, effectiveMode);
+            List<SearchResult> chunks = rr.results();
             hitDocuments = chunks.stream().map(SearchResult::getFileName).distinct()
                 .collect(Collectors.joining(", "));
             metrics.setRetrievalLatencyMs(Duration.between(retrievalStart, Instant.now()).toMillis());
             metrics.setChunksRetrieved(chunks.size());
             metrics.setMaxChunkScore(chunks.stream().mapToDouble(SearchResult::getScore).max().orElse(0.0));
+            metrics.setKeywordCount(rr.keywordCount());
+            metrics.setVectorCount(rr.vectorCount());
+            metrics.setOverlapCount(rr.overlapCount());
+            metrics.setEmbeddingLatencyMs(rr.embeddingLatencyMs());
+            metrics.setKeywordLatencyMs(rr.keywordLatencyMs());
+            metrics.setVectorLatencyMs(rr.vectorLatencyMs());
+            metrics.setRerankLatencyMs(rr.rerankLatencyMs());
 
             // 3. Safety check
             SafetyService.SafetyResult safe = safetyService.evaluate(question, chunks);
+            Map<String, Object> safetyFields = new LinkedHashMap<>();
+            safetyFields.put("event", "safety");
+            safetyFields.put("decision", safe.decision().name());
+            safetyFields.put("allowed", safe.allowed());
+            safetyFields.put("max_chunk_score", metrics.getMaxChunkScore());
+            log.info("Safety evaluation {}", entries(safetyFields));
             if (!safe.allowed()) {
                 metrics.setRefusal(true);
                 metrics.setRefusalReason(safe.decision().name());
@@ -151,10 +179,19 @@ public class ChatService {
             // 5. Generate via DashScope
             Instant genStart = Instant.now();
             llmCallCount++;
-            String answerText = dashScope.chat(systemPrompt, question);
+            DashScopeService.ChatResult gen = dashScope.chat(systemPrompt, question);
+            String answerText = gen.content();
             metrics.setGenerationLatencyMs(Duration.between(genStart, Instant.now()).toMillis());
-            metrics.setPromptTokens(countTokens(systemPrompt + question));
-            metrics.setCompletionTokens(countTokens(answerText));
+            metrics.setPromptTokens(gen.promptTokens());
+            metrics.setCompletionTokens(gen.completionTokens());
+
+            Map<String, Object> genFields = new LinkedHashMap<>();
+            genFields.put("event", "generation");
+            genFields.put("model", chatModel);
+            genFields.put("prompt_tokens", gen.promptTokens());
+            genFields.put("completion_tokens", gen.completionTokens());
+            genFields.put("generation_latency_ms", metrics.getGenerationLatencyMs());
+            log.info("Generation completed {}", entries(genFields));
 
             // 6. PII redaction
             int redactions = piiService.redactCount(answerText);
@@ -187,9 +224,25 @@ public class ChatService {
             historyRepo.save(createMessage(sessionId, "user", question));
             historyRepo.save(createMessage(sessionId, "assistant", answerText));
 
-            log.info("Chat completed: retrievalMode={}, latency={}ms, chunks={}, cache={}, refusal={}",
-                effectiveMode, metrics.getTotalLatencyMs(),
-                chunks.size(), metrics.isCacheHit(), metrics.isRefusal());
+            Map<String, Object> completeFields = new LinkedHashMap<>();
+            completeFields.put("event", "chat_completed");
+            completeFields.put("status", "success");
+            completeFields.put("model", chatModel);
+            completeFields.put("latency_total_ms", metrics.getTotalLatencyMs());
+            completeFields.put("latency_retrieval_ms", metrics.getRetrievalLatencyMs());
+            completeFields.put("latency_generation_ms", metrics.getGenerationLatencyMs());
+            completeFields.put("tokens_prompt", metrics.getPromptTokens());
+            completeFields.put("tokens_completion", metrics.getCompletionTokens());
+            completeFields.put("tokens_total", metrics.getPromptTokens() + metrics.getCompletionTokens());
+            completeFields.put("chunks_retrieved", metrics.getChunksRetrieved());
+            completeFields.put("max_chunk_score", metrics.getMaxChunkScore());
+            completeFields.put("cache_hit", metrics.isCacheHit());
+            completeFields.put("refusal", metrics.isRefusal());
+            completeFields.put("pii_redactions", metrics.getPiiRedactions());
+            completeFields.put("answer_compliance", metrics.getAnswerCompliance());
+            completeFields.put("llm_call_count", llmCallCount);
+            completeFields.put("hit_documents", hitDocuments);
+            log.info("Chat completed {}", entries(completeFields));
 
             return response;
 
@@ -197,6 +250,14 @@ public class ChatService {
             metrics.setTotalLatencyMs(Duration.between(start, Instant.now()).toMillis());
             metricsCollector.complete(metrics);
             logRequest(metrics, question, null, hitDocuments, llmCallCount, "error");
+
+            Map<String, Object> errorFields = new LinkedHashMap<>();
+            errorFields.put("event", "error");
+            errorFields.put("exception", e.getClass().getName());
+            errorFields.put("error_message", e.getMessage() == null ? "" : e.getMessage());
+            errorFields.put("latency_total_ms", metrics.getTotalLatencyMs());
+            errorFields.put("llm_call_count", llmCallCount);
+            log.error("Chat failed {}", entries(errorFields), e);
             throw e;
         } finally {
             MDC.remove("traceId");
@@ -221,10 +282,6 @@ public class ChatService {
     private String scrubCitations(String text) {
         String scrubbed = CITATION_PAT.matcher(text).replaceAll("");
         return FILENAME_PAT.matcher(scrubbed).replaceAll("").trim();
-    }
-
-    private int countTokens(String text) {
-        return (int) (text.length() / 1.5);
     }
 
     private double complianceScore(String answer, boolean refusal) {
@@ -289,6 +346,14 @@ public class ChatService {
         log.setChunksRetrieved(m.getChunksRetrieved());
         log.setMaxChunkScore(m.getMaxChunkScore());
         log.setPiiRedactions(m.getPiiRedactions());
+        log.setKeywordCount(m.getKeywordCount());
+        log.setVectorCount(m.getVectorCount());
+        log.setOverlapCount(m.getOverlapCount());
+        log.setEmbeddingLatencyMs(m.getEmbeddingLatencyMs());
+        log.setKeywordLatencyMs(m.getKeywordLatencyMs());
+        log.setVectorLatencyMs(m.getVectorLatencyMs());
+        log.setRerankLatencyMs(m.getRerankLatencyMs());
+        log.setCacheLookupLatencyMs(m.getCacheLookupLatencyMs());
         log.setStatus(status);
         requestLogRepo.save(log);
     }

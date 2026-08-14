@@ -79,6 +79,30 @@ public class RequestLog {
     @Column(name = "pii_redactions")
     private int piiRedactions;
 
+    @Column(name = "keyword_count")
+    private int keywordCount;
+
+    @Column(name = "vector_count")
+    private int vectorCount;
+
+    @Column(name = "overlap_count")
+    private int overlapCount;
+
+    @Column(name = "embedding_latency_ms")
+    private long embeddingLatencyMs;
+
+    @Column(name = "keyword_latency_ms")
+    private long keywordLatencyMs;
+
+    @Column(name = "vector_latency_ms")
+    private long vectorLatencyMs;
+
+    @Column(name = "rerank_latency_ms")
+    private long rerankLatencyMs;
+
+    @Column(name = "cache_lookup_latency_ms")
+    private long cacheLookupLatencyMs;
+
     @Column(length = 16)
     private String status; // "success" | "refused" | "error"
 

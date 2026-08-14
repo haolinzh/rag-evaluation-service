@@ -82,5 +82,13 @@ export interface RequestLog {
   chunksRetrieved: number;
   maxChunkScore: number;
   piiRedactions: number;
+  keywordCount: number;
+  vectorCount: number;
+  overlapCount: number;
+  embeddingLatencyMs: number;
+  keywordLatencyMs: number;
+  vectorLatencyMs: number;
+  rerankLatencyMs: number;
+  cacheLookupLatencyMs: number;
   status: string;
 }

@@ -22,4 +22,12 @@ public class OpsMetrics {
     private int chunksRetrieved;
     private double maxChunkScore;
     private double answerCompliance;
+    private int keywordCount;
+    private int vectorCount;
+    private int overlapCount;
+    private long embeddingLatencyMs;
+    private long keywordLatencyMs;
+    private long vectorLatencyMs;
+    private long rerankLatencyMs;
+    private long cacheLookupLatencyMs;
 }

@@ -3,6 +3,7 @@ package com.rag.eval.service;
 import com.alibaba.dashscope.aigc.generation.Generation;
 import com.alibaba.dashscope.aigc.generation.GenerationParam;
 import com.alibaba.dashscope.aigc.generation.GenerationResult;
+import com.alibaba.dashscope.aigc.generation.GenerationUsage;
 import com.alibaba.dashscope.common.Message;
 import com.alibaba.dashscope.common.Role;
 import com.alibaba.dashscope.embeddings.TextEmbedding;
@@ -28,7 +29,9 @@ public class DashScopeService {
         this.embeddingModel = embeddingModel;
     }
 
-    public String chat(String systemPrompt, String userMessage) {
+    public record ChatResult(String content, int promptTokens, int completionTokens) {}
+
+    public ChatResult chat(String systemPrompt, String userMessage) {
         try {
             List<Message> messages = List.of(
                 Message.builder().role(Role.SYSTEM.getValue()).content(systemPrompt).build(),
@@ -43,7 +46,13 @@ public class DashScopeService {
                 .build();
 
             GenerationResult result = new Generation().call(param);
-            return result.getOutput().getChoices().get(0).getMessage().getContent();
+            String content = result.getOutput().getChoices().get(0).getMessage().getContent();
+
+            GenerationUsage usage = result.getUsage();
+            int promptTokens = usage != null && usage.getInputTokens() != null ? usage.getInputTokens() : 0;
+            int completionTokens = usage != null && usage.getOutputTokens() != null ? usage.getOutputTokens() : 0;
+
+            return new ChatResult(content, promptTokens, completionTokens);
         } catch (NoApiKeyException | InputRequiredException e) {
             throw new RuntimeException("DASHSCOPE_API_KEY not set", e);
         }

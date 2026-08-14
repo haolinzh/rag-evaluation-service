@@ -6,8 +6,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static net.logstash.logback.argument.StructuredArguments.entries;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Service
 public class RetrievalService {
@@ -47,34 +57,103 @@ public class RetrievalService {
         this.rerankEnabled = rerankEnabled;
     }
 
-    public List<SearchResult> retrieve(String query, String requestedMode) {
+    public RetrievalResult retrieve(String query, String requestedMode) {
         String effectiveMode = resolveMode(requestedMode);
+
+        Instant embStart = Instant.now();
+        String queryEmb = embedQuery(query);
+        long embeddingLatencyMs = Duration.between(embStart, Instant.now()).toMillis();
+
         if ("vector".equals(effectiveMode)) {
-            String emb = embedQuery(query);
-            return vectorService.semanticSearch(emb, topK);
+            Instant vectorStart = Instant.now();
+            List<SearchResult> results = vectorService.semanticSearch(queryEmb, topK);
+            long vectorLatencyMs = Duration.between(vectorStart, Instant.now()).toMillis();
+            logRetrieval(effectiveMode, 0, results.size(), 0, embeddingLatencyMs, 0, vectorLatencyMs, 0, results);
+            return new RetrievalResult(results, 0, results.size(), 0,
+                embeddingLatencyMs, 0, vectorLatencyMs, 0);
         }
 
         // Hybrid + hybrid-rerank share the parallel keyword + semantic recall
         int recallSize = Math.max(topK * recallMultiplier, 30);
-        String queryEmb = embedQuery(query);
+        AtomicLong keywordLatency = new AtomicLong();
+        AtomicLong vectorLatency = new AtomicLong();
 
         CompletableFuture<List<SearchResult>> keywordFuture =
-            CompletableFuture.supplyAsync(() -> esService.keywordSearch(query, recallSize));
+            CompletableFuture.supplyAsync(() -> {
+                Instant s = Instant.now();
+                List<SearchResult> r = esService.keywordSearch(query, recallSize);
+                keywordLatency.set(Duration.between(s, Instant.now()).toMillis());
+                return r;
+            });
         CompletableFuture<List<SearchResult>> vectorFuture =
-            CompletableFuture.supplyAsync(() -> vectorService.semanticSearch(queryEmb, recallSize));
+            CompletableFuture.supplyAsync(() -> {
+                Instant s = Instant.now();
+                List<SearchResult> r = vectorService.semanticSearch(queryEmb, recallSize);
+                vectorLatency.set(Duration.between(s, Instant.now()).toMillis());
+                return r;
+            });
 
         List<SearchResult> keywordResults = keywordFuture.join();
         List<SearchResult> vectorResults = vectorFuture.join();
+        int overlap = overlapCount(keywordResults, vectorResults);
 
         if ("hybrid-rerank".equals(effectiveMode)) {
             if (!rerankEnabled) {
                 log.warn("hybrid-rerank requested but rerank is disabled; falling back to RRF topK");
-                return rrfService.fuse(keywordResults, vectorResults, topK);
+                List<SearchResult> fused = rrfService.fuse(keywordResults, vectorResults, topK);
+                logRetrieval(effectiveMode, keywordResults.size(), vectorResults.size(), overlap,
+                    embeddingLatencyMs, keywordLatency.get(), vectorLatency.get(), 0, fused);
+                return new RetrievalResult(fused, keywordResults.size(), vectorResults.size(), overlap,
+                    embeddingLatencyMs, keywordLatency.get(), vectorLatency.get(), 0);
             }
             List<SearchResult> fused = rrfService.fuse(keywordResults, vectorResults, rerankCandidates);
-            return rerankService.rerank(query, fused, topK);
+            Instant rerankStart = Instant.now();
+            List<SearchResult> reranked = rerankService.rerank(query, fused, topK);
+            long rerankLatency = Duration.between(rerankStart, Instant.now()).toMillis();
+            logRetrieval(effectiveMode, keywordResults.size(), vectorResults.size(), overlap,
+                embeddingLatencyMs, keywordLatency.get(), vectorLatency.get(), rerankLatency, reranked);
+            return new RetrievalResult(reranked, keywordResults.size(), vectorResults.size(), overlap,
+                embeddingLatencyMs, keywordLatency.get(), vectorLatency.get(), rerankLatency);
         }
-        return rrfService.fuse(keywordResults, vectorResults, topK);
+
+        List<SearchResult> fused = rrfService.fuse(keywordResults, vectorResults, topK);
+        logRetrieval(effectiveMode, keywordResults.size(), vectorResults.size(), overlap,
+            embeddingLatencyMs, keywordLatency.get(), vectorLatency.get(), 0, fused);
+        return new RetrievalResult(fused, keywordResults.size(), vectorResults.size(), overlap,
+            embeddingLatencyMs, keywordLatency.get(), vectorLatency.get(), 0);
+    }
+
+    public record RetrievalResult(List<SearchResult> results,
+                                  int keywordCount, int vectorCount, int overlapCount,
+                                  long embeddingLatencyMs, long keywordLatencyMs,
+                                  long vectorLatencyMs, long rerankLatencyMs) {}
+
+
+    private int overlapCount(List<SearchResult> keyword, List<SearchResult> vector) {
+        Set<String> ids = new HashSet<>();
+        for (SearchResult r : keyword) ids.add(r.getChunkId());
+        int overlap = 0;
+        for (SearchResult r : vector) if (ids.contains(r.getChunkId())) overlap++;
+        return overlap;
+    }
+
+    private void logRetrieval(String mode, int keywordCount, int vectorCount, int overlap,
+                              long embeddingLatencyMs, long keywordLatencyMs, long vectorLatencyMs,
+                              long rerankLatencyMs, List<SearchResult> results) {
+        double maxScore = results.stream().mapToDouble(SearchResult::getScore).max().orElse(0.0);
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("event", "retrieval");
+        fields.put("mode", mode);
+        fields.put("keyword_count", keywordCount);
+        fields.put("vector_count", vectorCount);
+        fields.put("overlap_count", overlap);
+        fields.put("embedding_latency_ms", embeddingLatencyMs);
+        fields.put("keyword_latency_ms", keywordLatencyMs);
+        fields.put("vector_latency_ms", vectorLatencyMs);
+        fields.put("rerank_latency_ms", rerankLatencyMs);
+        fields.put("chunks_retrieved", results.size());
+        fields.put("max_chunk_score", maxScore);
+        log.info("Retrieval completed {}", entries(fields));
     }
 
     public String resolveMode(String requestedMode) {
