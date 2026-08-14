@@ -14,6 +14,8 @@
 
 ![日志详情（检索分通道指标）](docs/screenshot-log-detail.jpg)
 
+![系统配置页](docs/screenshot-config.jpg)
+
 ---
 
 ## 目录
