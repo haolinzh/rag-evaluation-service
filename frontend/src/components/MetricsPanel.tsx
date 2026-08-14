@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Statistic, Row, Col, Button, Typography, message } from 'antd';
+import { Card, Button, Typography, Space, message } from 'antd';
 import { DownloadOutlined, ReloadOutlined, ClearOutlined } from '@ant-design/icons';
 import { fetchReport, fetchMetricsSummary, clearCache } from '../api';
 import type { OpsReport } from '../types';
@@ -19,8 +19,7 @@ const MetricsPanel: React.FC = () => {
 
   const refresh = useCallback(async () => {
     try {
-      const data = await fetchMetricsSummary();
-      setMetrics(data);
+      setMetrics(await fetchMetricsSummary());
     } catch {
       // keep last known values on transient failure
     }
@@ -56,70 +55,40 @@ const MetricsPanel: React.FC = () => {
     }
   };
 
+  const stats: { label: string; value: string; suffix?: string }[] = [
+    { label: '请求数', value: String(metrics.totalRequests) },
+    { label: 'Token 用量', value: String(metrics.totalTokens) },
+    { label: 'P50 延迟', value: String(metrics.p50LatencyMs), suffix: 'ms' },
+    { label: 'P95 延迟', value: String(metrics.p95LatencyMs), suffix: 'ms' },
+    { label: 'P50 未命中', value: String(metrics.missP50LatencyMs), suffix: 'ms' },
+    { label: 'P95 未命中', value: String(metrics.missP95LatencyMs), suffix: 'ms' },
+    { label: '缓存命中率', value: metrics.cacheHitRate.toFixed(1), suffix: '%' },
+    { label: '拒答率', value: metrics.refusalRate.toFixed(1), suffix: '%' },
+    { label: '合规率', value: metrics.answerComplianceRate.toFixed(1), suffix: '%' },
+  ];
+
   return (
-    <div>
-      <Typography.Title level={5} style={{ marginTop: 0 }}>运维指标</Typography.Title>
-
-      <Row gutter={[12, 12]}>
-        <Col span={12}>
-          <Card size="small">
-            <Statistic title="P50 延迟（总）" value={metrics.p50LatencyMs} suffix="ms" precision={0} />
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card size="small">
-            <Statistic title="P95 延迟（总）" value={metrics.p95LatencyMs} suffix="ms" precision={0} />
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card size="small">
-            <Statistic title="P50 延迟（未命中缓存）" value={metrics.missP50LatencyMs} suffix="ms" precision={0} />
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card size="small">
-            <Statistic title="P95 延迟（未命中缓存）" value={metrics.missP95LatencyMs} suffix="ms" precision={0} />
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card size="small">
-            <Statistic title="请求数" value={metrics.totalRequests} />
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card size="small">
-            <Statistic title="Token 用量" value={metrics.totalTokens} />
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card size="small">
-            <Statistic title="缓存命中率" value={metrics.cacheHitRate} suffix="%" precision={1} />
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card size="small">
-            <Statistic title="拒答率" value={metrics.refusalRate} suffix="%" precision={1} />
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card size="small">
-            <Statistic title="合规率" value={metrics.answerComplianceRate} suffix="%" precision={1} />
-          </Card>
-        </Col>
-      </Row>
-
-      <div style={{ marginTop: 16 }}>
-        <Button icon={<ReloadOutlined />} size="small" style={{ marginRight: 8 }} onClick={refresh}>
-          刷新
-        </Button>
-        <Button icon={<DownloadOutlined />} onClick={handleDownload} size="small">
-          下载 CSV 报告
-        </Button>
-        <Button icon={<ClearOutlined />} onClick={handleClearCache} size="small" style={{ marginLeft: 8 }}>
-          清空缓存
-        </Button>
+    <Card size="small">
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+        <Typography.Title level={5} style={{ margin: 0, flex: 1 }}>运维指标</Typography.Title>
+        <Space size={4}>
+          <Button size="small" type="text" icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
+          <Button size="small" type="text" icon={<DownloadOutlined />} onClick={handleDownload}>下载 CSV</Button>
+          <Button size="small" type="text" icon={<ClearOutlined />} onClick={handleClearCache}>清空缓存</Button>
+        </Space>
       </div>
-    </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 12px' }}>
+        {stats.map(s => (
+          <div key={s.label} style={{ background: '#fafafa', borderRadius: 6, padding: '8px 10px' }}>
+            <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 17, fontWeight: 600, color: '#262626', lineHeight: 1.2 }}>
+              {s.value}
+              {s.suffix && <span style={{ fontSize: 12, fontWeight: 400, color: '#8c8c8c', marginLeft: 2 }}>{s.suffix}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 };
 

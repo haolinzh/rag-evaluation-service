@@ -97,6 +97,7 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const active = sessions.find(s => s.id === activeId) ?? sessions[0];
 
@@ -129,7 +130,8 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
   }, [activeId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = messagesContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [active?.messages]);
 
   const updateSession = (id: string, updater: (s: Session) => Session) => {
@@ -206,7 +208,7 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', minHeight: 0, maxHeight: 'calc(100vh - 100px)' }}>
+    <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
       {/* Conversation list (always visible) */}
       <div style={{
         width: 208,
@@ -283,7 +285,7 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
 
       {/* Chat area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px', marginBottom: 12 }}>
+        <div ref={messagesContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '0 12px', marginBottom: 12 }}>
           {(!active || active.messages.length === 0) && (
             <div style={{ textAlign: 'center', color: '#999', marginTop: 120 }}>
               <RobotOutlined style={{ fontSize: 48 }} />
@@ -300,26 +302,29 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
               <Space align="start" style={{ maxWidth: '90%' }}>
                 {msg.role === 'assistant' && <RobotOutlined style={{ color: '#1677ff' }} />}
                 <div style={{
-                  maxWidth: '100%',
+                  maxWidth: 720,
                   minWidth: 0,
                   padding: '10px 14px',
                   borderRadius: 12,
                   background: msg.role === 'user' ? '#1677ff' : '#f0f0f0',
                   color: msg.role === 'user' ? '#fff' : '#333',
+                  wordBreak: 'break-word',
                 }}>
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-                  {msg.retrievalMode && (
-                    <Tag style={{ marginTop: 6 }} color="green">模式: {msg.retrievalMode}</Tag>
-                  )}
-                  {msg.refusal && <Tag style={{ marginTop: 6 }} color="orange">拒答</Tag>}
-                  {msg.sources && msg.sources.length > 0 && (
+                  <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{msg.content}</div>
+                  {(msg.retrievalMode || msg.refusal) && (
                     <div style={{ marginTop: 6 }}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>来源: </Text>
-                      {msg.sources.map((s, i) => (
-                        <Tag key={i} color="blue" style={{ fontSize: 11, marginBottom: 2 }}>
-                          {s.fileName}
-                        </Tag>
-                      ))}
+                      {msg.retrievalMode && <Tag color="green" style={{ marginInlineEnd: 4 }}>模式: {msg.retrievalMode}</Tag>}
+                      {msg.refusal && <Tag color="orange">拒答</Tag>}
+                    </div>
+                  )}
+                  {msg.sources && msg.sources.length > 0 && (
+                    <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>来源</Text>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {msg.sources.map((s, i) => (
+                          <Tag key={i} color="blue" style={{ fontSize: 11, margin: 0 }}>{s.fileName}</Tag>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

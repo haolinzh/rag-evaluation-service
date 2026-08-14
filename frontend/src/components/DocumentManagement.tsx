@@ -77,10 +77,10 @@ const DocumentManagement: React.FC<Props> = ({ onBack }) => {
 
   return (
     <div style={{ padding: 24 }}>
-      <Space style={{ marginBottom: 16 }} align="center">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={onBack}>返回</Button>
-        <Typography.Title level={4} style={{ margin: 0 }}>文档管理</Typography.Title>
-      </Space>
+        <Typography.Title level={4} style={{ margin: 0, flex: 1 }}>文档管理</Typography.Title>
+      </div>
 
       <Table
         rowKey="id"
@@ -88,7 +88,7 @@ const DocumentManagement: React.FC<Props> = ({ onBack }) => {
         columns={columns}
         loading={loading}
         pagination={{ pageSize: 10 }}
-        scroll={{ x: 1000 }}
+        scroll={{ x: 1000, y: 'calc(100vh - 220px)' }}
       />
 
       <Drawer

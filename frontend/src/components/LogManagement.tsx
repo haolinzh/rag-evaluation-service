@@ -67,14 +67,14 @@ const LogManagement: React.FC<Props> = ({ onBack }) => {
 
   return (
     <div style={{ padding: 24 }}>
-      <Space style={{ marginBottom: 16 }} align="center">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={onBack}>返回</Button>
-        <Typography.Title level={4} style={{ margin: 0 }}>日志管理</Typography.Title>
+        <Typography.Title level={4} style={{ margin: 0, flex: 1 }}>日志管理</Typography.Title>
         <Button icon={<ReloadOutlined />} onClick={refresh} loading={loading}>刷新</Button>
         <Popconfirm title="确定清空所有日志？" onConfirm={handleClear} okText="清空" cancelText="取消">
           <Button icon={<DeleteOutlined />} danger>清空日志</Button>
         </Popconfirm>
-      </Space>
+      </div>
 
       <Table<RequestLog>
         rowKey="id"
@@ -82,7 +82,7 @@ const LogManagement: React.FC<Props> = ({ onBack }) => {
         columns={columns}
         loading={loading}
         pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1200, y: 'calc(100vh - 220px)' }}
         expandable={{
           expandedRowRender: (r) => (
             <Descriptions size="small" column={2} bordered>

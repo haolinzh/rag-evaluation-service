@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Upload, Button, List, Popconfirm, Select, Space, Typography, message, Tag, Progress, Input, InputNumber } from 'antd';
-import { UploadOutlined, DeleteOutlined, ReloadOutlined, InboxOutlined, FolderOpenOutlined } from '@ant-design/icons';
+import { Upload, Button, List, Popconfirm, Select, Space, Typography, message, Tag, Progress, Input, InputNumber, Tooltip } from 'antd';
+import { DeleteOutlined, ReloadOutlined, InboxOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import type { DocumentMeta } from '../types';
 import { uploadDocument, deleteDocument } from '../api';
 
@@ -14,6 +14,8 @@ interface Props {
   onRefresh: () => void;
   onOpenManagement: () => void;
 }
+
+const labelStyle: React.CSSProperties = { fontSize: 12, color: '#8c8c8c', marginBottom: 4 };
 
 const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange, onRefresh, onOpenManagement }) => {
   const [uploading, setUploading] = useState(false);
@@ -57,55 +59,48 @@ const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange
   };
 
   return (
-    <div>
-      <Typography.Title level={5} style={{ marginTop: 0 }}>文档</Typography.Title>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+      <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>文档</Typography.Title>
 
-      <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
-        <Space>
-          <span>检索模式:</span>
-          <Select value={retrievalMode} onChange={onModeChange} style={{ width: 160 }}
-            options={[
-              { value: 'hybrid', label: 'Hybrid (混合)' },
-              { value: 'vector', label: 'Vector (向量)' },
-              { value: 'hybrid-rerank', label: 'Hybrid + Rerank' },
-            ]} />
-        </Space>
+      <div style={{ marginBottom: 10 }}>
+        <div style={labelStyle}>检索模式</div>
+        <Select value={retrievalMode} onChange={onModeChange} style={{ width: '100%' }}
+          options={[
+            { value: 'hybrid', label: 'Hybrid (混合)' },
+            { value: 'vector', label: 'Vector (向量)' },
+            { value: 'hybrid-rerank', label: 'Hybrid + Rerank' },
+          ]} />
+      </div>
 
-        <Space>
-          <span>切分方式:</span>
-          <Select value={splitMode} onChange={setSplitMode} style={{ width: 160 }}
-            options={[
-              { value: 'size', label: '按大小 (size)' },
-              { value: 'delimiter', label: '特殊字符 (分隔符)' },
-            ]} />
-        </Space>
+      <div style={{ marginBottom: 10 }}>
+        <div style={labelStyle}>切分方式</div>
+        <Select value={splitMode} onChange={setSplitMode} style={{ width: '100%' }}
+          options={[
+            { value: 'size', label: '按大小 (size)' },
+            { value: 'delimiter', label: '特殊字符 (分隔符)' },
+          ]} />
+      </div>
 
+      <div style={{ marginBottom: 10 }}>
+        <div style={labelStyle}>{splitMode === 'size' ? 'Chunk 大小（字符）' : '分隔符'}</div>
         {splitMode === 'size' ? (
-          <Space>
-            <span>Chunk 大小:</span>
-            <InputNumber min={50} max={5000} value={chunkSize} onChange={v => setChunkSize(v ?? 500)} style={{ width: 120 }} />
-            <Text type="secondary">字符</Text>
-          </Space>
+          <InputNumber min={50} max={5000} value={chunkSize} onChange={v => setChunkSize(v ?? 500)} style={{ width: '100%' }} />
         ) : (
-          <Space>
-            <span>分隔符:</span>
-            <Input value={delimiter} onChange={e => setDelimiter(e.target.value)} placeholder="如 ## 或 ###" style={{ width: 140 }} />
-          </Space>
+          <Input value={delimiter} onChange={e => setDelimiter(e.target.value)} placeholder="如 ## 或 ###" />
         )}
+      </div>
 
-        <Space>
-          <span>Overlap:</span>
-          <InputNumber min={0} max={500} value={overlap} onChange={v => setOverlap(v ?? 50)} disabled={splitMode === 'delimiter'} style={{ width: 120 }} />
-          <Text type="secondary">字符（按大小切分时生效）</Text>
-        </Space>
-      </Space>
+      <div style={{ marginBottom: 12 }}>
+        <div style={labelStyle}>Overlap（字符）</div>
+        <InputNumber min={0} max={500} value={overlap} onChange={v => setOverlap(v ?? 50)} disabled={splitMode === 'delimiter'} style={{ width: '100%' }} />
+      </div>
 
       <Dragger
         accept=".pdf,.docx,.txt"
         showUploadList={false}
         beforeUpload={handleUpload}
         disabled={uploading}
-        style={{ marginBottom: 16 }}
+        style={{ marginBottom: 12 }}
       >
         <p className="ant-upload-drag-icon"><InboxOutlined /></p>
         <p className="ant-upload-text">点击或拖拽文件上传</p>
@@ -117,15 +112,16 @@ const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange
           percent={progress >= 100 ? 99 : progress}
           status="active"
           format={() => (progress >= 100 ? '正在解析文档并生成向量…' : `上传中 ${progress}%`)}
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 12 }}
         />
       )}
 
-      <div style={{ marginBottom: 8 }}>
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={onRefresh} size="small">刷新列表</Button>
-          <Button icon={<FolderOpenOutlined />} onClick={onOpenManagement} size="small">文档详情</Button>
-        </Space>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>{documents.length} 个文档</Text>
+        <span>
+          <Button type="text" size="small" icon={<ReloadOutlined />} onClick={onRefresh}>刷新</Button>
+          <Button type="text" size="small" icon={<FolderOpenOutlined />} onClick={onOpenManagement}>详情</Button>
+        </span>
       </div>
 
       <List
@@ -133,18 +129,23 @@ const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange
         locale={{ emptyText: '暂无文档' }}
         renderItem={(doc) => (
           <List.Item
+            style={{ padding: '8px 4px' }}
             actions={[
               <Popconfirm title="确认删除？" onConfirm={() => handleDelete(doc.id)} key="del">
-                <Button size="small" danger icon={<DeleteOutlined />} />
+                <Button size="small" danger type="text" icon={<DeleteOutlined />}>删除</Button>
               </Popconfirm>
             ]}
           >
             <List.Item.Meta
-              title={<Text ellipsis style={{ maxWidth: 200 }}>{doc.fileName}</Text>}
+              title={
+                <Tooltip title={doc.fileName}>
+                  <Text ellipsis style={{ maxWidth: 180, display: 'block' }}>{doc.fileName}</Text>
+                </Tooltip>
+              }
               description={
                 <Space size={4}>
-                  <Tag>{formatSize(doc.fileSize)}</Tag>
-                  <Tag>{doc.chunkCount} chunks</Tag>
+                  <Tag style={{ marginInlineEnd: 0 }}>{formatSize(doc.fileSize)}</Tag>
+                  <Tag style={{ marginInlineEnd: 0 }}>{doc.chunkCount} chunks</Tag>
                 </Space>
               }
             />

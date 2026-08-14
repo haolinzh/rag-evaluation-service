@@ -53,17 +53,19 @@ const App: React.FC = () => {
   );
   const chatPanel = <ChatPanel retrievalMode={retrievalMode} />;
   const metricsPanel = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
       <MetricsPanel />
       <LogPanel onOpenManagement={() => setView('logs')} />
     </div>
   );
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       <style>{`
         .rag-sep { width: 6px; background: #f0f0f0; transition: background 0.15s ease; }
         .rag-sep[data-separator="hover"], .rag-sep[data-separator="active"] { background: #1677ff; }
+        .rag-sep-v { height: 6px; background: #f0f0f0; transition: background 0.15s ease; }
+        .rag-sep-v[data-separator="hover"], .rag-sep-v[data-separator="active"] { background: #1677ff; }
       `}</style>
 
       <Header style={{
@@ -87,7 +89,7 @@ const App: React.FC = () => {
       </Header>
 
       {isMobile ? (
-        <Content style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <Content style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1, overflow: 'hidden' }}>
           {chatPanel}
           <Drawer title="文档" placement="left" width={320} open={docsOpen} onClose={() => setDocsOpen(false)}>
             {documentPanel}
@@ -97,16 +99,16 @@ const App: React.FC = () => {
           </Drawer>
         </Content>
       ) : (
-        <Group orientation="horizontal" id="rag-main" style={{ flex: 1, minHeight: 0 }}>
-          <Panel id="documents" defaultSize="22" minSize="15" maxSize="35" style={{ padding: 16, background: colorBgContainer }}>
+        <Group orientation="horizontal" id="rag-main" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <Panel id="documents" defaultSize="20" minSize="15" maxSize="35" style={{ padding: 16, background: colorBgContainer, display: 'flex', flexDirection: 'column' }}>
             {documentPanel}
           </Panel>
           <Separator className="rag-sep" />
-          <Panel id="chat" defaultSize="58" minSize="30" style={{ padding: 16, display: 'flex', flexDirection: 'column' }}>
+          <Panel id="chat" defaultSize="56" minSize="30" style={{ padding: 16, display: 'flex', flexDirection: 'column' }}>
             {chatPanel}
           </Panel>
           <Separator className="rag-sep" />
-          <Panel id="metrics" defaultSize="20" minSize="15" maxSize="30" style={{ padding: 16, background: colorBgContainer }}>
+          <Panel id="metrics" defaultSize="24" minSize="18" maxSize="32" style={{ padding: 16, background: colorBgContainer, display: 'flex', flexDirection: 'column' }}>
             {metricsPanel}
           </Panel>
         </Group>
