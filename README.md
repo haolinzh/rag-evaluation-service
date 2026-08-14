@@ -51,6 +51,8 @@
 | **安全拒答** | 关键词黑名单 → 相似度阈值 → 越界检测，三级闸门 |
 | **PII 脱敏** | 星号中段掩码：身份证 `110101********1234`、手机号 `138****5678`、邮箱 `t***@example.com`（按序，避免手机号误匹配身份证号） |
 | **语义缓存** | Redis 缓存归一化问题（答案 + 来源一起缓存），命中直接返回，降低重复调用成本 |
+| **思考过程展示** | 对话模型返回 `reasoning_content` 时（如 `deepseek-r1`、`qwen3-235b-a22b-thinking`），前端气泡内可折叠展开「思考过程」 |
+| **流式输出** | 思考过程与回答通过 SSE（`/api/chat/stream`）逐 token 流式返回，无需等待完整生成 |
 | **请求日志** | 以请求为 entry 持久化：请求 ID、时间、问题、session、模型、模式、命中文档、响应时间、LLM 调用次数、token、脱敏数等 |
 | **运维指标** | 每请求采集 p50/p95 延迟、token 用量、缓存命中率、拒答率、答案合规率、脱敏次数 |
 | **自动化评测** | 22 道中英测试题，对比 vector vs hybrid，输出 5 项质量指标 + 对比报告 |
@@ -63,7 +65,7 @@
 | 层 | 技术 |
 |---|---|
 | 后端框架 | Spring Boot 3.4.1 (Java 17) |
-| 大模型 | 阿里云百炼 DashScope：`qwen-plus` (对话) + `text-embedding-v3` (向量) + `qwen3-rerank` (精排) |
+| 大模型 | 阿里云百炼 DashScope：`qwen-plus` (对话) + `text-embedding-v3` (向量) + `qwen3-rerank` (精排)；对话可切换 `deepseek-r1` / `qwen3-235b-a22b-thinking` 深度思考模型 |
 | 关键词检索 | Elasticsearch 8.13.4 |
 | 向量数据库 | PostgreSQL 16 + pgvector (cosine `<=>` 操作符) |
 | 缓存 | Redis 7 |
@@ -230,6 +232,7 @@ npm run dev
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | `POST` | `/api/chat` | 多轮问答，请求体 `{"question": "...", "sessionId": "...", "mode": "hybrid"}` |
+| `POST` | `/api/chat/stream` | 流式问答（SSE，逐 token 返回 `thinking`/`content`/`done` 事件） |
 | `GET` | `/api/chat/history/{sessionId}` | 查询会话历史 |
 | `DELETE` | `/api/chat/history/{sessionId}` | 删除会话历史 |
 | `POST` | `/api/documents/upload` | 上传文档 (multipart，可带 `splitMode`/`chunkSize`/`overlap`/`delimiter` 参数) |

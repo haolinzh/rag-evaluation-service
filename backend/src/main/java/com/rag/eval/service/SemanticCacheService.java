@@ -18,15 +18,15 @@ public class SemanticCacheService {
         this.config = config;
     }
 
-    public String lookup(String normalizedQuestion, String mode) {
+    public String lookup(String normalizedQuestion, String mode, String model) {
         if (!config.getBool("cache.semantic.enabled", true)) return null;
-        String key = cacheKey(normalizedQuestion, mode);
+        String key = cacheKey(normalizedQuestion, mode, model);
         return redisTemplate.opsForValue().get(key);
     }
 
-    public void store(String normalizedQuestion, String mode, String answer) {
+    public void store(String normalizedQuestion, String mode, String model, String answer) {
         if (!config.getBool("cache.semantic.enabled", true)) return;
-        String key = cacheKey(normalizedQuestion, mode);
+        String key = cacheKey(normalizedQuestion, mode, model);
         long ttlSeconds = config.getInt("cache.semantic.ttl-seconds", 3600);
         redisTemplate.opsForValue().set(key, answer, ttlSeconds, TimeUnit.SECONDS);
     }
@@ -38,9 +38,9 @@ public class SemanticCacheService {
         }
     }
 
-    private String cacheKey(String question, String mode) {
-        // Simple normalization + hash for exact-match cache, keyed by retrieval mode
+    private String cacheKey(String question, String mode, String model) {
+        // Keyed by retrieval mode AND chat model, so switching models never serves a stale answer.
         String normalized = question.toLowerCase().strip().replaceAll("\\s+", " ");
-        return "cache:qa:" + Integer.toHexString((normalized + "|" + mode).hashCode());
+        return "cache:qa:" + Integer.toHexString((normalized + "|" + mode + "|" + model).hashCode());
     }
 }

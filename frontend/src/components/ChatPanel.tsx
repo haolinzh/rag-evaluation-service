@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Input, Button, Typography, Space, Tag, Spin } from 'antd';
 import { SendOutlined, UserOutlined, RobotOutlined, PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
-import { askQuestion, getChatHistory, deleteChatHistory } from '../api';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { streamAsk, getChatHistory, deleteChatHistory } from '../api';
 import type { ChatResponse, ChatMessage, Source } from '../types';
+import '../markdown.css';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -11,6 +14,7 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  thinking?: string;
   sources?: ChatResponse['sources'];
   retrievalMode?: string;
   refusal?: boolean;
@@ -118,6 +122,7 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
                 id: String(m.id),
                 role: m.role as 'user' | 'assistant',
                 content: m.content,
+                thinking: m.thinking ?? undefined,
                 retrievalMode: m.retrievalMode ?? undefined,
                 sources: parseSources(m.sources),
               })),
@@ -177,31 +182,45 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
     setLoading(true);
 
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: q };
+    const assistantId = crypto.randomUUID();
+    const assistantMsg: Message = { id: assistantId, role: 'assistant', content: '' };
     updateSession(active.id, s => ({
       ...s,
       title: s.title === '新对话' ? (q.length > 20 ? q.slice(0, 20) + '…' : q) : s.title,
-      messages: [...s.messages, userMsg],
+      messages: [...s.messages, userMsg, assistantMsg],
     }));
 
-    try {
-      const resp = await askQuestion(q, active.id, retrievalMode);
-      const assistantMsg: Message = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: resp.content,
-        sources: resp.sources,
-        retrievalMode: resp.retrievalMode,
-        refusal: resp.refusal,
-      };
-      updateSession(active.id, s => ({ ...s, messages: [...s.messages, assistantMsg] }));
-    } catch {
+    const patchAssistant = (patch: Partial<Message>) => {
       updateSession(active.id, s => ({
         ...s,
-        messages: [...s.messages, {
-          id: crypto.randomUUID(), role: 'assistant',
-          content: '抱歉，服务出错了，请稍后重试。',
-        }],
+        messages: s.messages.map(m => (m.id === assistantId ? { ...m, ...patch } : m)),
       }));
+    };
+
+    let accThinking = '';
+    let accContent = '';
+
+    try {
+      await streamAsk(q, active.id, retrievalMode, (evt) => {
+        if (evt.type === 'thinking') {
+          accThinking += evt.text ?? '';
+          patchAssistant({ thinking: accThinking });
+        } else if (evt.type === 'content') {
+          accContent += evt.text ?? '';
+          patchAssistant({ content: accContent });
+        } else if (evt.type === 'done') {
+          patchAssistant({
+            sources: evt.sources,
+            retrievalMode: evt.retrievalMode,
+            refusal: evt.refusal,
+          });
+          if (!accContent && evt.content) patchAssistant({ content: evt.content });
+        } else if (evt.type === 'error') {
+          patchAssistant({ content: evt.text || '抱歉，服务出错了，请稍后重试。' });
+        }
+      });
+    } catch {
+      patchAssistant({ content: accContent || '抱歉，服务出错了，请稍后重试。' });
     } finally {
       setLoading(false);
     }
@@ -310,7 +329,27 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
                   color: msg.role === 'user' ? '#fff' : '#333',
                   wordBreak: 'break-word',
                 }}>
-                  <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{msg.content}</div>
+                  {msg.role === 'assistant' ? (
+                    <div className="markdown-body">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{msg.content}</div>
+                  )}
+                  {msg.thinking && (
+                    <details open style={{ marginTop: 8, fontSize: 12 }}>
+                      <summary style={{ cursor: 'pointer', color: '#8c8c8c', userSelect: 'none' }}>思考过程</summary>
+                      <div style={{
+                        marginTop: 6,
+                        padding: '8px 10px',
+                        background: 'rgba(0,0,0,0.04)',
+                        borderRadius: 8,
+                        whiteSpace: 'pre-wrap',
+                        overflowWrap: 'anywhere',
+                        color: '#666',
+                      }}>{msg.thinking}</div>
+                    </details>
+                  )}
                   {(msg.retrievalMode || msg.refusal) && (
                     <div style={{ marginTop: 6 }}>
                       {msg.retrievalMode && <Tag color="green" style={{ marginInlineEnd: 4 }}>模式: {msg.retrievalMode}</Tag>}

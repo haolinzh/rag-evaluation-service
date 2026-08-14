@@ -11,6 +11,7 @@ import java.util.List;
 @AllArgsConstructor
 public class ChatResponse {
     private String content;
+    private String thinking;
     private String retrievalMode;
     private List<Source> sources;
     private boolean refusal;

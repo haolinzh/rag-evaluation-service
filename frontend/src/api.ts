@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { DocumentMeta, ChatResponse, ChatMessage, OpsReport, ChunkConfig, ChunkPreview, RequestLog, SystemConfig } from './types';
+import type { DocumentMeta, ChatResponse, ChatMessage, OpsReport, ChunkConfig, ChunkPreview, RequestLog, SystemConfig, Source } from './types';
 
 const api = axios.create({ baseURL: '/api' });
 
@@ -41,6 +41,59 @@ export async function getDocumentChunks(id: number): Promise<ChunkPreview[]> {
 export async function askQuestion(question: string, sessionId: string, mode: string): Promise<ChatResponse> {
   const { data } = await api.post('/chat', { question, sessionId, mode });
   return data;
+}
+
+export interface StreamEvent {
+  type: 'thinking' | 'content' | 'done' | 'error';
+  text?: string;
+  content?: string;
+  thinking?: string;
+  retrievalMode?: string;
+  sources?: Source[];
+  refusal?: boolean;
+  refusalReason?: string;
+}
+
+export async function streamAsk(
+  question: string,
+  sessionId: string,
+  mode: string,
+  onEvent: (evt: StreamEvent) => void
+): Promise<void> {
+  const resp = await fetch('/api/chat/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, sessionId, mode }),
+  });
+
+  if (!resp.ok || !resp.body) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(text || `HTTP ${resp.status}`);
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf('\n\n')) >= 0) {
+      const rawEvent = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      for (const line of rawEvent.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (!data) continue;
+        try {
+          onEvent(JSON.parse(data) as StreamEvent);
+        } catch {
+          // ignore malformed chunk
+        }
+      }
+    }
+  }
 }
 
 export async function getChatHistory(sessionId: string): Promise<ChatMessage[]> {

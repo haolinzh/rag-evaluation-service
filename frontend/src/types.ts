@@ -34,6 +34,7 @@ export interface Source {
 
 export interface ChatResponse {
   content: string;
+  thinking?: string | null;
   retrievalMode: string;
   sources: Source[];
   refusal: boolean;
@@ -46,6 +47,7 @@ export interface ChatMessage {
   role: string;
   content: string;
   createdAt: string;
+  thinking?: string | null;
   retrievalMode?: string | null;
   sources?: string | null;
 }

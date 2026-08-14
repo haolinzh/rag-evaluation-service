@@ -29,6 +29,9 @@ public class ChatMessage {
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    @Column(columnDefinition = "TEXT")
+    private String thinking;
+
     @Column(name = "retrieval_mode", length = 32)
     private String retrievalMode;
 

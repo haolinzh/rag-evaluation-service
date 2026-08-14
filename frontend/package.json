@@ -13,7 +13,9 @@
     "axios": "^1.7.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "react-resizable-panels": "^4.12.2"
+    "react-markdown": "^10.1.0",
+    "react-resizable-panels": "^4.12.2",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",
