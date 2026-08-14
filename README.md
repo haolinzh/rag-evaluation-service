@@ -8,7 +8,11 @@
 
 ## 界面预览
 
-![RAG 知识库问答系统界面](docs/screenshot.jpg)
+![RAG 知识库问答系统主界面](docs/screenshot.jpg)
+
+![日志管理页](docs/screenshot-log-management.jpg)
+
+![日志详情（检索分通道指标）](docs/screenshot-log-detail.jpg)
 
 ---
 
