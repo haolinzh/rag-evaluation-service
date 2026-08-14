@@ -54,6 +54,7 @@
 | **请求日志** | 以请求为 entry 持久化：请求 ID、时间、问题、session、模型、模式、命中文档、响应时间、LLM 调用次数、token、脱敏数等 |
 | **运维指标** | 每请求采集 p50/p95 延迟、token 用量、缓存命中率、拒答率、答案合规率、脱敏次数 |
 | **自动化评测** | 22 道中英测试题，对比 vector vs hybrid，输出 5 项质量指标 + 对比报告 |
+| **运行时配置** | 检索参数、模型选择、安全阈值、语义缓存可通过「系统配置」页热更新，持久化到 `system_config` 表，无需重启 |
 
 ---
 
@@ -133,7 +134,7 @@ rag-evaluation-service/
 │       ├── main/java/com/rag/eval/
 │       │   ├── RAGApplication.java
 │       │   ├── config/             # WebConfig / ES / Redis / pgvector
-│       │   ├── controller/         # Chat / Document / Report / Log / Cache
+│       │   ├── controller/         # Chat / Document / Report / Log / Cache / Config
 │       │   ├── model/              # DTO + JPA 实体（含 RequestLog）
 │       │   ├── repository/         # JPA + JDBC(pgvector 原生 SQL)
 │       │   ├── service/            # 检索/重排/安全/脱敏/缓存/指标/报告
@@ -151,6 +152,7 @@ rag-evaluation-service/
 │           ├── DocumentPanel.tsx    # 上传（chunk 配置）+ 检索模式切换
 │           ├── DocumentManagement.tsx # 文档管理页（chunk 预览）
 │           ├── ChatPanel.tsx        # 多轮对话 + 来源展示
+│           ├── ConfigPage.tsx       # 系统配置页（检索/模型/安全/缓存热更新）
 │           ├── MetricsPanel.tsx     # 指标面板 + CSV 下载 + 清缓存
 │           ├── LogPanel.tsx         # 主页日志（自动刷新）
 │           └── LogManagement.tsx    # 日志管理页（全量明细）
@@ -238,6 +240,9 @@ npm run dev
 | `DELETE` | `/api/logs` | 清空请求日志 |
 | `POST` | `/api/cache/clear` | 清空语义缓存 |
 | `GET` | `/api/report/csv` | 下载运维指标 CSV |
+| `GET` | `/api/report/summary` | 运维指标汇总（JSON，主页指标面板轮询） |
+| `GET` | `/api/config` | 读取运行时配置（检索/模型/安全/缓存） |
+| `PUT` | `/api/config` | 更新运行时配置，热更新无需重启 |
 
 **问答示例：**
 
@@ -288,7 +293,6 @@ retrieval:
   rrf-k: 60
   recall-size-multiplier: 3      # 每路召回 = topK * 3
   rerank-candidates: 20          # hybrid-rerank 时 RRF 先保留的候选数
-  rerank-enabled: true           # 精排独立开关，false 时 hybrid-rerank 退化为纯 RRF
   similarity-threshold: 0.4
 ```
 
@@ -374,7 +378,7 @@ CSV 包含逐请求明细（检索/生成/总延迟、prompt/completion token、
 
 ## 配置说明
 
-关键配置项均支持环境变量覆盖（见 `application.yml`）：
+检索参数、模型选择、安全阈值、语义缓存开关均支持在运行时通过前端「系统配置」页（`GET/PUT /api/config`）热更新，持久化到 `system_config` 表，无需重启。以下基础设施连接与 API Key 通过环境变量覆盖（见 `application.yml`）：
 
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|

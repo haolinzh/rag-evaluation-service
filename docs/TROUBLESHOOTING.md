@@ -31,7 +31,7 @@
 | 症状 | 排查 |
 |---|---|
 | 延迟突然升高 | 看 `GET /api/report/summary` 的 p95 与 missP95；分离检索/生成耗时（`retrievalLatencyMs` vs `generationLatencyMs`） |
-| 精排配额告警 | 临时关闭精排：`retrieval.rerank-enabled=false`，退化为纯 RRF |
+| 精排配额告警 | 临时改用 `hybrid` 模式（不精排），退化为纯 RRF |
 | 重复问题仍走生成 | 语义缓存未命中，检查 Redis 连接与 `cache.semantic.similarity-threshold` |
 
 ---
