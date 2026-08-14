@@ -6,18 +6,6 @@
 
 ---
 
-## 界面预览
-
-![RAG 知识库问答系统主界面](docs/screenshot.jpg)
-
-![日志管理页](docs/screenshot-log-management.jpg)
-
-![日志详情（检索分通道指标）](docs/screenshot-log-detail.jpg)
-
-![系统配置页](docs/screenshot-config.jpg)
-
----
-
 ## 目录
 
 - [界面预览](#界面预览)
@@ -38,6 +26,18 @@
 - [运维指标报告](#运维指标报告)
 - [请求日志](#请求日志)
 - [配置说明](#配置说明)
+
+---
+
+## 界面预览
+
+![RAG 知识库问答系统主界面](docs/screenshot.jpg)
+
+![日志管理页](docs/screenshot-log-management.jpg)
+
+![日志详情（检索分通道指标）](docs/screenshot-log-detail.jpg)
+
+![系统配置页](docs/screenshot-config.jpg)
 
 ---
 
