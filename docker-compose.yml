@@ -46,6 +46,27 @@ services:
       timeout: 3s
       retries: 5
 
+  backend:
+    build: ./backend
+    environment:
+      DB_HOST: postgres
+      DB_USER: rag
+      DB_PASSWORD: rag123
+      ES_HOST: elasticsearch
+      ES_PORT: "9200"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   pgdata:
   esdata:

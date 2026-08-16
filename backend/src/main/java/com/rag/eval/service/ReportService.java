@@ -1,42 +1,43 @@
 package com.rag.eval.service;
 
-import com.rag.eval.model.OpsMetrics;
 import com.rag.eval.model.OpsReport;
+import com.rag.eval.model.RequestLog;
+import com.rag.eval.repository.RequestLogRepo;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.springframework.stereotype.Service;
 
 import java.io.StringWriter;
-import java.util.Collections;
 import java.util.List;
 
 @Service
 public class ReportService {
 
-    private final MetricsCollector collector;
+    private final RequestLogRepo requestLogRepo;
 
-    public ReportService(MetricsCollector collector) {
-        this.collector = collector;
+    public ReportService(RequestLogRepo requestLogRepo) {
+        this.requestLogRepo = requestLogRepo;
     }
 
     public OpsReport getSummary() {
-        List<OpsMetrics> metrics = collector.snapshot();
-        if (metrics.isEmpty()) {
+        List<RequestLog> logs = requestLogRepo.findAll();
+        if (logs.isEmpty()) {
             return new OpsReport(0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
-        List<Long> latencies = metrics.stream()
-            .map(OpsMetrics::getTotalLatencyMs).sorted().toList();
-        List<Long> missLatencies = metrics.stream()
-            .filter(m -> !m.isCacheHit())
-            .map(OpsMetrics::getTotalLatencyMs).sorted().toList();
-        long totalRequests = metrics.size();
-        long cacheHits = metrics.stream().filter(OpsMetrics::isCacheHit).count();
-        long refusals = metrics.stream().filter(OpsMetrics::isRefusal).count();
-        long totalTokens = metrics.stream()
-            .mapToLong(m -> m.getPromptTokens() + m.getCompletionTokens()).sum();
-        double complianceRate = metrics.stream()
-            .mapToDouble(OpsMetrics::getAnswerCompliance).average().orElse(0.0) * 100;
+        List<Long> latencies = logs.stream()
+            .map(RequestLog::getResponseTimeMs).sorted().toList();
+        List<Long> missLatencies = logs.stream()
+            .filter(l -> !l.isCacheHit())
+            .map(RequestLog::getResponseTimeMs).sorted().toList();
+        long totalRequests = logs.size();
+        long cacheHits = logs.stream().filter(RequestLog::isCacheHit).count();
+        long refusals = logs.stream().filter(RequestLog::isRefusal).count();
+        long totalTokens = logs.stream()
+            .mapToLong(l -> l.getPromptTokens() + l.getCompletionTokens()).sum();
+        double complianceRate = logs.stream()
+            .mapToDouble(l -> complianceScore(l.getAnswer(), l.isRefusal()))
+            .average().orElse(0.0) * 100;
 
         return new OpsReport(
             totalRequests,
@@ -52,51 +53,52 @@ public class ReportService {
     }
 
     public String generateCsv() {
-        List<OpsMetrics> metrics = collector.snapshot();
-        if (metrics.isEmpty()) {
+        List<RequestLog> logs = requestLogRepo.findAll();
+        if (logs.isEmpty()) {
             return "No data available.";
         }
 
         try {
             StringWriter sw = new StringWriter();
             CSVPrinter csv = new CSVPrinter(sw, CSVFormat.DEFAULT.builder()
-                .setHeader("requestId", "sessionId", "timestamp", "retrievalMode",
+                .setHeader("requestId", "sessionId", "createdAt", "retrievalMode",
                     "retrievalLatencyMs", "generationLatencyMs", "totalLatencyMs",
                     "promptTokens", "completionTokens", "cacheHit", "refusal",
                     "refusalReason", "piiRedactions", "chunksRetrieved", "maxChunkScore",
-                    "answerCompliance")
+                    "answerCompliance", "status")
                 .build());
 
-            for (OpsMetrics m : metrics) {
+            for (RequestLog l : logs) {
                 csv.printRecord(
-                    m.getRequestId(), m.getSessionId(), m.getTimestamp(), m.getRetrievalMode(),
-                    m.getRetrievalLatencyMs(), m.getGenerationLatencyMs(), m.getTotalLatencyMs(),
-                    m.getPromptTokens(), m.getCompletionTokens(), m.isCacheHit(), m.isRefusal(),
-                    m.getRefusalReason() != null ? m.getRefusalReason() : "",
-                    m.getPiiRedactions(), m.getChunksRetrieved(), m.getMaxChunkScore(),
-                    m.getAnswerCompliance()
+                    l.getRequestId(), l.getSessionId(), l.getCreatedAt(), l.getRetrievalMode(),
+                    l.getRetrievalLatencyMs(), l.getGenerationLatencyMs(), l.getResponseTimeMs(),
+                    l.getPromptTokens(), l.getCompletionTokens(), l.isCacheHit(), l.isRefusal(),
+                    l.getRefusalReason() != null ? l.getRefusalReason() : "",
+                    l.getPiiRedactions(), l.getChunksRetrieved(), l.getMaxChunkScore(),
+                    complianceScore(l.getAnswer(), l.isRefusal()), l.getStatus()
                 );
             }
 
             csv.flush();
             sw.append("\n");
 
-            // Summary
-            List<Long> latencies = metrics.stream()
-                .map(OpsMetrics::getTotalLatencyMs).sorted().toList();
-            long p50 = latencies.isEmpty() ? 0 : latencies.get((int) (latencies.size() * 0.5));
-            long p95 = latencies.isEmpty() ? 0 : latencies.get((int) (latencies.size() * 0.95));
-            long totalRequests = metrics.size();
-            long cacheHits = metrics.stream().filter(OpsMetrics::isCacheHit).count();
-            long refusals = metrics.stream().filter(OpsMetrics::isRefusal).count();
-            long totalTokens = metrics.stream().mapToLong(m -> m.getPromptTokens() + m.getCompletionTokens()).sum();
-            double complianceRate = metrics.stream()
-                .mapToDouble(OpsMetrics::getAnswerCompliance).average().orElse(0.0) * 100;
+            List<Long> latencies = logs.stream()
+                .map(RequestLog::getResponseTimeMs).sorted().toList();
+            long totalRequests = logs.size();
+            long cacheHits = logs.stream().filter(RequestLog::isCacheHit).count();
+            long refusals = logs.stream().filter(RequestLog::isRefusal).count();
+            long totalTokens = logs.stream().mapToLong(l -> l.getPromptTokens() + l.getCompletionTokens()).sum();
+            double complianceRate = logs.stream()
+                .mapToDouble(l -> complianceScore(l.getAnswer(), l.isRefusal()))
+                .average().orElse(0.0) * 100;
 
             sw.append("\n# Summary\n");
             sw.append("# totalRequests,p50LatencyMs,p95LatencyMs,totalTokens,cacheHitRate,refusalRate,answerComplianceRate\n");
             sw.append(String.format("# %d,%d,%d,%d,%.2f,%.2f,%.2f\n",
-                totalRequests, p50, p95, totalTokens,
+                totalRequests,
+                percentile(latencies, 0.50),
+                percentile(latencies, 0.95),
+                totalTokens,
                 totalRequests > 0 ? (double) cacheHits / totalRequests : 0,
                 totalRequests > 0 ? (double) refusals / totalRequests : 0,
                 complianceRate));
@@ -112,5 +114,19 @@ public class ReportService {
         int idx = (int) Math.ceil(p * sorted.size()) - 1;
         idx = Math.max(0, Math.min(idx, sorted.size() - 1));
         return sorted.get(idx);
+    }
+
+    private static double complianceScore(String answer, boolean refusal) {
+        if (refusal) return 1.0;
+        if (answer == null || answer.isBlank()) return 0.0;
+        double score = 0.0;
+        if (answer.length() > 10) score += 0.3;
+        if (answer.length() > 50) score += 0.3;
+        String lower = answer.toLowerCase();
+        if (answer.contains("来源") || answer.contains("根据") || answer.contains("文档")
+                || lower.contains("knowledge")) {
+            score += 0.2;
+        }
+        return Math.min(1.0, score);
     }
 }

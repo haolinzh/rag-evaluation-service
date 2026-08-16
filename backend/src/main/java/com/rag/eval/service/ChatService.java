@@ -13,6 +13,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +82,9 @@ public class ChatService {
         Instant start = Instant.now();
         int llmCallCount = 0;
         String hitDocuments = "";
+        String retrievedChunksJson = null;
+        String rerankCandidatesJson = null;
+        String promptForLog = null;
 
         try {
             // 1. Check semantic cache
@@ -102,11 +106,12 @@ public class ChatService {
                 ChatResponse cachedResponse = deserializeCached(cached, effectiveMode);
                 metrics.setAnswerCompliance(complianceScore(cachedResponse.getContent(), false));
                 metricsCollector.complete(metrics);
-                logRequest(metrics, question, cachedResponse.getContent(), "", 0, "success");
+                logRequest(metrics, question, cachedResponse.getContent(), "", 0, "success", null, null, null);
 
                 historyRepo.save(createMessage(sessionId, "user", question));
                 historyRepo.save(createAssistantMessage(sessionId, cachedResponse.getContent(),
-                    cachedResponse.getThinking(), cachedResponse.getRetrievalMode(), cachedResponse.getSources()));
+                    cachedResponse.getThinking(), cachedResponse.getRetrievalMode(), cachedResponse.getSources(),
+                    cachedResponse.isRefusal()));
 
                 return cachedResponse;
             }
@@ -128,6 +133,10 @@ public class ChatService {
             metrics.setVectorLatencyMs(rr.vectorLatencyMs());
             metrics.setRerankLatencyMs(rr.rerankLatencyMs());
 
+            retrievedChunksJson = serializeChunks(chunks, true);
+            rerankCandidatesJson = (rr.rerankCandidates() != null && !rr.rerankCandidates().isEmpty())
+                ? serializeChunks(rr.rerankCandidates(), true) : null;
+
             // 3. Safety check
             SafetyService.SafetyResult safe = safetyService.evaluate(question, chunks);
             Map<String, Object> safetyFields = new LinkedHashMap<>();
@@ -142,10 +151,10 @@ public class ChatService {
                 metrics.setAnswerCompliance(1.0);
                 metrics.setTotalLatencyMs(Duration.between(start, Instant.now()).toMillis());
                 metricsCollector.complete(metrics);
-                logRequest(metrics, question, safe.decision().message, hitDocuments, 0, "refused");
+                logRequest(metrics, question, safe.decision().message, hitDocuments, 0, "refused", retrievedChunksJson, rerankCandidatesJson, null);
 
                 historyRepo.save(createMessage(sessionId, "user", question));
-                historyRepo.save(createMessage(sessionId, "assistant", safe.decision().message));
+                historyRepo.save(createAssistantMessage(sessionId, safe.decision().message, null, effectiveMode, List.of(), true));
 
                 return new ChatResponse(safe.decision().message, null, effectiveMode,
                     List.of(), true, safe.decision().name());
@@ -179,6 +188,8 @@ public class ChatService {
                 %s
                 """.formatted(historyContext, context);
 
+            promptForLog = piiService.redact(systemPrompt + "\n\n[用户问题] " + question);
+
             // 5. Generate via DashScope
             Instant genStart = Instant.now();
             llmCallCount++;
@@ -205,7 +216,7 @@ public class ChatService {
             // 7. Final metrics
             metrics.setTotalLatencyMs(Duration.between(start, Instant.now()).toMillis());
             metricsCollector.complete(metrics);
-            logRequest(metrics, question, answerText, hitDocuments, llmCallCount, "success");
+            logRequest(metrics, question, answerText, hitDocuments, llmCallCount, "success", retrievedChunksJson, rerankCandidatesJson, promptForLog);
 
             // 8. Build sources
             boolean noInfo = NO_INFO_PAT.matcher(answerText).find();
@@ -225,7 +236,7 @@ public class ChatService {
 
             // 10. Save history
             historyRepo.save(createMessage(sessionId, "user", question));
-            historyRepo.save(createAssistantMessage(sessionId, answerText, gen.thinking(), effectiveMode, sources));
+            historyRepo.save(createAssistantMessage(sessionId, answerText, gen.thinking(), effectiveMode, sources, false));
 
             Map<String, Object> completeFields = new LinkedHashMap<>();
             completeFields.put("event", "chat_completed");
@@ -252,7 +263,7 @@ public class ChatService {
         } catch (RuntimeException e) {
             metrics.setTotalLatencyMs(Duration.between(start, Instant.now()).toMillis());
             metricsCollector.complete(metrics);
-            logRequest(metrics, question, null, hitDocuments, llmCallCount, "error");
+            logRequest(metrics, question, null, hitDocuments, llmCallCount, "error", retrievedChunksJson, rerankCandidatesJson, null);
 
             Map<String, Object> errorFields = new LinkedHashMap<>();
             errorFields.put("event", "error");
@@ -284,6 +295,9 @@ public class ChatService {
         Instant start = Instant.now();
         int llmCallCount = 0;
         String hitDocuments = "";
+        String retrievedChunksJson = null;
+        String rerankCandidatesJson = null;
+        String promptForLog = null;
 
         try {
             // 1. Semantic cache
@@ -305,11 +319,12 @@ public class ChatService {
                 ChatResponse cachedResponse = deserializeCached(cached, effectiveMode);
                 metrics.setAnswerCompliance(complianceScore(cachedResponse.getContent(), false));
                 metricsCollector.complete(metrics);
-                logRequest(metrics, question, cachedResponse.getContent(), "", 0, "success");
+                logRequest(metrics, question, cachedResponse.getContent(), "", 0, "success", null, null, null);
 
                 historyRepo.save(createMessage(sessionId, "user", question));
                 historyRepo.save(createAssistantMessage(sessionId, cachedResponse.getContent(),
-                    cachedResponse.getThinking(), cachedResponse.getRetrievalMode(), cachedResponse.getSources()));
+                    cachedResponse.getThinking(), cachedResponse.getRetrievalMode(), cachedResponse.getSources(),
+                    cachedResponse.isRefusal()));
 
                 emitThinking(emitter, cachedResponse.getThinking());
                 emitContent(emitter, cachedResponse.getContent());
@@ -334,6 +349,10 @@ public class ChatService {
             metrics.setVectorLatencyMs(rr.vectorLatencyMs());
             metrics.setRerankLatencyMs(rr.rerankLatencyMs());
 
+            retrievedChunksJson = serializeChunks(chunks, true);
+            rerankCandidatesJson = (rr.rerankCandidates() != null && !rr.rerankCandidates().isEmpty())
+                ? serializeChunks(rr.rerankCandidates(), true) : null;
+
             // 3. Safety check
             SafetyService.SafetyResult safe = safetyService.evaluate(question, chunks);
             Map<String, Object> safetyFields = new LinkedHashMap<>();
@@ -348,10 +367,10 @@ public class ChatService {
                 metrics.setAnswerCompliance(1.0);
                 metrics.setTotalLatencyMs(Duration.between(start, Instant.now()).toMillis());
                 metricsCollector.complete(metrics);
-                logRequest(metrics, question, safe.decision().message, hitDocuments, 0, "refused");
+                logRequest(metrics, question, safe.decision().message, hitDocuments, 0, "refused", retrievedChunksJson, rerankCandidatesJson, null);
 
                 historyRepo.save(createMessage(sessionId, "user", question));
-                historyRepo.save(createMessage(sessionId, "assistant", safe.decision().message));
+                historyRepo.save(createAssistantMessage(sessionId, safe.decision().message, null, effectiveMode, List.of(), true));
 
                 emitContent(emitter, safe.decision().message);
                 emitDone(emitter, new ChatResponse(safe.decision().message, null, effectiveMode,
@@ -386,6 +405,8 @@ public class ChatService {
                 %s=== 文档内容 ===
                 %s
                 """.formatted(historyContext, context);
+
+            promptForLog = piiService.redact(systemPrompt + "\n\n[用户问题] " + question);
 
             // 5. Stream generation
             Instant genStart = Instant.now();
@@ -424,7 +445,7 @@ public class ChatService {
             // 7. Final metrics + log
             metrics.setTotalLatencyMs(Duration.between(start, Instant.now()).toMillis());
             metricsCollector.complete(metrics);
-            logRequest(metrics, question, redacted, hitDocuments, llmCallCount, "success");
+            logRequest(metrics, question, redacted, hitDocuments, llmCallCount, "success", retrievedChunksJson, rerankCandidatesJson, promptForLog);
 
             // 8. Build sources
             boolean noInfo = NO_INFO_PAT.matcher(redacted).find();
@@ -444,7 +465,7 @@ public class ChatService {
 
             // 10. Save history
             historyRepo.save(createMessage(sessionId, "user", question));
-            historyRepo.save(createAssistantMessage(sessionId, redacted, thinkingText, effectiveMode, sources));
+            historyRepo.save(createAssistantMessage(sessionId, redacted, thinkingText, effectiveMode, sources, false));
 
             // 11. Emit final event
             emitDone(emitter, response);
@@ -452,7 +473,7 @@ public class ChatService {
         } catch (RuntimeException e) {
             metrics.setTotalLatencyMs(Duration.between(start, Instant.now()).toMillis());
             metricsCollector.complete(metrics);
-            logRequest(metrics, question, null, hitDocuments, llmCallCount, "error");
+            logRequest(metrics, question, null, hitDocuments, llmCallCount, "error", retrievedChunksJson, rerankCandidatesJson, null);
 
             Map<String, Object> errorFields = new LinkedHashMap<>();
             errorFields.put("event", "error");
@@ -551,10 +572,11 @@ public class ChatService {
     }
 
     private ChatMessage createAssistantMessage(String sessionId, String content, String thinking,
-                                               String retrievalMode, List<Source> sources) {
+                                               String retrievalMode, List<Source> sources, boolean refusal) {
         ChatMessage msg = createMessage(sessionId, "assistant", content);
         msg.setThinking(thinking);
         msg.setRetrievalMode(retrievalMode);
+        msg.setRefusal(refusal);
         msg.setSources(serializeSources(sources));
         return msg;
     }
@@ -586,8 +608,43 @@ public class ChatService {
         }
     }
 
+    private String serializeChunks(List<SearchResult> chunks, boolean redactContent) {
+        try {
+            List<Map<String, Object>> arr = new ArrayList<>();
+            for (int i = 0; i < chunks.size(); i++) {
+                SearchResult c = chunks.get(i);
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("rank", i + 1);
+                m.put("fileName", c.getFileName());
+                m.put("chunkId", c.getChunkId());
+                m.put("score", c.getScore());
+                m.put("source", c.getSource());
+                if (c.getChapter() != null) m.put("chapter", c.getChapter());
+                if (c.getSection() != null) m.put("section", c.getSection());
+                if (c.getContent() != null) {
+                    String content = redactContent ? piiService.redact(c.getContent()) : c.getContent();
+                    m.put("snippet", content.length() > 300 ? content.substring(0, 300) : content);
+                }
+                SearchResult.SourceDetail sd = c.getSourceDetails();
+                if (sd != null) {
+                    Map<String, Object> scores = new LinkedHashMap<>();
+                    if (sd.getKeywordScore() != null) scores.put("keyword", sd.getKeywordScore());
+                    if (sd.getSemanticScore() != null) scores.put("semantic", sd.getSemanticScore());
+                    if (sd.getRrfScore() != null) scores.put("rrf", sd.getRrfScore());
+                    m.put("sourceDetails", scores);
+                }
+                arr.add(m);
+            }
+            return objectMapper.writeValueAsString(arr);
+        } catch (Exception e) {
+            log.warn("Failed to serialize chunks", e);
+            return "[]";
+        }
+    }
+
     private void logRequest(OpsMetrics m, String question, String answer, String hitDocuments,
-                            int llmCallCount, String status) {
+                            int llmCallCount, String status,
+                            String retrievedChunks, String rerankCandidates, String prompt) {
         RequestLog log = new RequestLog();
         log.setRequestId(m.getRequestId());
         log.setSessionId(m.getSessionId());
@@ -596,6 +653,9 @@ public class ChatService {
         log.setModel(dashScope.getChatModel());
         log.setRetrievalMode(m.getRetrievalMode());
         log.setHitDocuments(hitDocuments);
+        log.setRetrievedChunks(retrievedChunks);
+        log.setRerankCandidates(rerankCandidates);
+        log.setPrompt(prompt);
         log.setResponseTimeMs(m.getTotalLatencyMs());
         log.setLlmCallCount(llmCallCount);
         log.setCacheHit(m.isCacheHit());

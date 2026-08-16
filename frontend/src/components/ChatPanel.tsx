@@ -124,6 +124,7 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
                 content: m.content,
                 thinking: m.thinking ?? undefined,
                 retrievalMode: m.retrievalMode ?? undefined,
+                refusal: m.refusal ?? undefined,
                 sources: parseSources(m.sources),
               })),
             }

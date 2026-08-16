@@ -35,6 +35,9 @@ public class ChatMessage {
     @Column(name = "retrieval_mode", length = 32)
     private String retrievalMode;
 
+    @Column
+    private Boolean refusal;
+
     @Column(columnDefinition = "TEXT")
     private String sources;
 

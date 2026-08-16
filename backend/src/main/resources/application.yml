@@ -65,6 +65,12 @@ cache:
     ttl-seconds: 3600
     similarity-threshold: 0.92
 
+ocr:
+  enabled: true
+  languages: chi_sim+eng
+  dpi: 300
+  timeout-seconds: 120
+
 logging:
   level:
     com.rag.eval: DEBUG

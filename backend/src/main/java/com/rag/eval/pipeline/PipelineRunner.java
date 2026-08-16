@@ -50,16 +50,14 @@ public class PipelineRunner implements CommandLineRunner {
             for (Path file : files) {
                 String fileName = file.getFileName().toString();
                 System.out.println("Parsing: " + fileName);
-                String text = parser.parse(Files.newInputStream(file));
-                String sourceType = fileName.toLowerCase().endsWith(".pdf")
-                        && !text.contains("Chapter") && !text.contains("第") ? "scanned" : "digital";
-                List<ChunkData> chunks = parser.splitAndEnrich(text, fileName, sourceType);
+                DocumentParserService.ParsedDocument parsed = parser.parse(Files.newInputStream(file), fileName);
+                List<ChunkData> chunks = parser.splitAndEnrich(parsed.text(), fileName, parsed.sourceType());
                 // Set chunk indices
                 for (int i = 0; i < chunks.size(); i++) {
                     chunks.get(i).setChunkIndex(i);
                 }
                 allChunks.addAll(chunks);
-                System.out.println("  -> " + chunks.size() + " chunks, type=" + sourceType);
+                System.out.println("  -> " + chunks.size() + " chunks, type=" + parsed.sourceType());
             }
 
             System.out.println("Total chunks: " + allChunks.size());

@@ -1,6 +1,6 @@
 # 问题诊断报告
 
-> 4 个在真实评测中发现并修复的问题，每个均含日志/指标证据、根因、修复理由与前后量化对比。修复前后数据由 `evaluation/run_all.sh`（22 题 × 3 模式）与 `evaluation/load_test.py`（5 并发）实测产出。
+> 5 个在真实评测中发现并修复的问题，每个均含日志/指标证据、根因、修复理由与前后量化对比。修复前后数据由 `evaluation/run_all.sh`（22 题 × 3 模式）与 `evaluation/load_test.py`（5 并发）实测产出。
 
 ---
 
@@ -69,6 +69,18 @@ ValueError: dict contains fields not in fieldnames: 'answer'
 
 ---
 
+## 问题 5：扫描版 PDF OCR 走 Tika 默认 eng，产出英文乱码
+
+**证据**：上传 `guizhou-wetland-regulation-scanned.pdf`（6 页图片型扫描件）后，chunk 预览全是 `NBER ARRRKSHSBASETA...` 英文字母乱码，且 `source_type=digital`（本应 `scanned`）；pgvector 与 ES 均无法命中中文检索。
+
+**根因**：Tika 3.x 的 `AutoDetectParser` 对图片型 PDF 自动启用内置 `TesseractOCRParser`，但语言默认 `eng`。因此 `tika.parseToString()` 直接返回了 eng 识别的乱码（非空），导致自定义 OCR 分支的 `text.isBlank()` 判断永不成立，`chi_sim+eng` 路径从未执行。
+
+**修复**：`DocumentParserService.parse()` 对 PDF 改用 PDFBox `PDFTextStripper` 直接提取文本层（绕过 Tika 自动 OCR）；文本层为空（扫描件）时，再用 PDFBox 渲染页面 + `tesseract -l chi_sim+eng` 走显式中文 OCR。同时后端容器化（`Dockerfile` 内置 tesseract + `chi_sim`），宿主机无需安装任何 OCR 依赖。
+
+**前后对比**：乱码 16 块 → 14 块正确中文（`source_type=scanned`）；问答「贵州省湿地保护条例自何时施行」可检索到扫描件并正确回答「2016 年 1 月 1 日起施行」。
+
+---
+
 ## 汇总
 
 | 问题 | 类型 | 关键指标 | 提升 |
@@ -77,3 +89,4 @@ ValueError: dict contains fields not in fieldnames: 'answer'
 | 越界拒答未实现 | 生成质量（合规下降） | 平均 Answer Compliance | 0.532 → 0.814 (+53%) |
 | 缓存绕过安全规则 | 安全（缓存投毒） | 修复后拒答生效 | 立即纠正 |
 | 评测脚本崩溃 | 交付物（评测中断） | 评测模式覆盖 | 1 → 3 模式 (+200%) |
+| 扫描件 OCR 乱码 | 文档解析（OCR 语言未生效） | 扫描件 source_type / 中文识别 | 英文乱码 → 中文 14 块 |

@@ -59,7 +59,7 @@ public class RetrievalService {
             List<SearchResult> results = vectorService.semanticSearch(queryEmb, topK);
             long vectorLatencyMs = Duration.between(vectorStart, Instant.now()).toMillis();
             logRetrieval(effectiveMode, 0, results.size(), 0, embeddingLatencyMs, 0, vectorLatencyMs, 0, results);
-            return new RetrievalResult(results, 0, results.size(), 0,
+            return new RetrievalResult(results, List.of(), 0, results.size(), 0,
                 embeddingLatencyMs, 0, vectorLatencyMs, 0);
         }
 
@@ -94,18 +94,19 @@ public class RetrievalService {
             long rerankLatency = Duration.between(rerankStart, Instant.now()).toMillis();
             logRetrieval(effectiveMode, keywordResults.size(), vectorResults.size(), overlap,
                 embeddingLatencyMs, keywordLatency.get(), vectorLatency.get(), rerankLatency, reranked);
-            return new RetrievalResult(reranked, keywordResults.size(), vectorResults.size(), overlap,
+            return new RetrievalResult(reranked, fused, keywordResults.size(), vectorResults.size(), overlap,
                 embeddingLatencyMs, keywordLatency.get(), vectorLatency.get(), rerankLatency);
         }
 
         List<SearchResult> fused = rrfService.fuse(keywordResults, vectorResults, topK);
         logRetrieval(effectiveMode, keywordResults.size(), vectorResults.size(), overlap,
             embeddingLatencyMs, keywordLatency.get(), vectorLatency.get(), 0, fused);
-        return new RetrievalResult(fused, keywordResults.size(), vectorResults.size(), overlap,
+        return new RetrievalResult(fused, List.of(), keywordResults.size(), vectorResults.size(), overlap,
             embeddingLatencyMs, keywordLatency.get(), vectorLatency.get(), 0);
     }
 
     public record RetrievalResult(List<SearchResult> results,
+                                  List<SearchResult> rerankCandidates,
                                   int keywordCount, int vectorCount, int overlapCount,
                                   long embeddingLatencyMs, long keywordLatencyMs,
                                   long vectorLatencyMs, long rerankLatencyMs) {}

@@ -42,9 +42,8 @@ public class DocumentService {
         if (docRepo.findByFileName(fileName).isPresent()) {
             throw new DuplicateDocumentException("文件已存在: " + fileName);
         }
-        String text = parser.parse(file.getInputStream());
-        String sourceType = "digital";
-        List<ChunkData> chunks = parser.splitAndEnrich(text, fileName, sourceType, config);
+        DocumentParserService.ParsedDocument parsed = parser.parse(file.getInputStream(), fileName);
+        List<ChunkData> chunks = parser.splitAndEnrich(parsed.text(), fileName, parsed.sourceType(), config);
         for (int i = 0; i < chunks.size(); i++) {
             chunks.get(i).setChunkIndex(i);
         }

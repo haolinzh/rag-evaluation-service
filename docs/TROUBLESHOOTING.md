@@ -6,12 +6,15 @@
 
 ## 1. 后端启动失败
 
+> 默认以 Docker 运行后端：`docker-compose up -d --build`，镜像内置 tesseract + `chi_sim`，宿主机无需 JDK 17 / tesseract。下表 JDK 相关项仅「宿主机直接 `mvn spring-boot:run` 调试」时适用。
+
 | 症状 | 排查 |
 |---|---|
 | `TypeTag :: UNKNOWN` / Lombok 相关报错 | JDK 版本过高。必须用 JDK 17：`export JAVA_HOME=/path/to/temurin-17` 后重新 `mvn spring-boot:run` |
 | `MissingProjectException` | 当前目录不在 `backend/`，先 `cd backend` |
-| 启动即报 DashScope 401/未配置 | `DASHSCOPE_API_KEY` 环境变量未设置或已过期 |
+| 启动即报 DashScope 401/未配置 | `DASHSCOPE_API_KEY` 环境变量未设置或已过期（容器模式：检查根目录 `.env`，`cp .env.example .env` 后填入） |
 | `Connection refused` to 5432/9200/6379 | 基础设施未启动：`docker-compose up -d`，`docker-compose ps` 确认三容器 healthy |
+| 容器起不来 / 端口占用 | `docker compose logs backend` 看报错；`docker compose ps` 看容器状态；8080 被占时改 `docker-compose.yml` 的 `ports` |
 
 ---
 
@@ -46,7 +49,17 @@
 
 ---
 
-## 5. 常用定位命令
+## 5. 扫描件 OCR
+
+| 症状 | 排查 |
+|---|---|
+| 扫描件 chunk 数为 0 | 仅文本层为空的 PDF 才走 OCR。确认 `ocr.enabled=true`；`GET /api/documents/{id}/chunks` 看是否 0 块 |
+| 扫描件 OCR 出来是英文乱码 | 语言包未生效。容器内 `docker exec rag-evaluation-service-backend-1 tesseract --list-langs` 应有 `chi_sim`；OCR 走 PDFBox 渲染 + `tesseract -l chi_sim+eng`，不是 Tika 内置 eng OCR |
+| 扫描件 `source_type` 仍是 `digital` | 说明走了文本提取而非 OCR 分支。确认 PDF 确实无文本层（如 `pypdf` 提取为空）；见 `ISSUE_DIAGNOSIS.md` 问题 5 |
+
+---
+
+## 6. 常用定位命令
 
 ```bash
 # 基础设施健康

@@ -20,6 +20,63 @@ const formatTime = (s?: string) => {
   return s.replace('T', ' ').split('.')[0];
 };
 
+interface ChunkRow {
+  rank: number;
+  fileName: string;
+  chunkId: string;
+  score: number;
+  source: string;
+  chapter?: string;
+  section?: string;
+  snippet?: string;
+  sourceDetails?: Record<string, number>;
+}
+
+const sourceColor: Record<string, string> = {
+  keyword: 'geekblue',
+  semantic: 'purple',
+  rrf: 'cyan',
+  rerank: 'gold',
+};
+
+const parseChunks = (json?: string | null): ChunkRow[] => {
+  if (!json) return [];
+  try {
+    const arr = JSON.parse(json);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+};
+
+const renderChunks = (json?: string | null) => {
+  const chunks = parseChunks(json);
+  if (chunks.length === 0) return '—';
+  return (
+    <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+      {chunks.map((c, i) => (
+        <div key={i} style={{ borderBottom: '1px solid #f0f0f0', padding: '6px 0', fontSize: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Tag color={sourceColor[c.source] ?? 'default'} style={{ margin: 0 }}>{c.source}</Tag>
+            <strong>#{c.rank}</strong>
+            <span>{c.fileName}</span>
+            {c.chapter && <span style={{ color: '#999' }}>{c.chapter}{c.section ? ' · ' + c.section : ''}</span>}
+            <span style={{ color: '#1677ff' }}>score {typeof c.score === 'number' ? c.score.toFixed(4) : c.score}</span>
+          </div>
+          {c.sourceDetails && Object.keys(c.sourceDetails).length > 0 && (
+            <div style={{ color: '#999', marginTop: 2 }}>
+              {Object.entries(c.sourceDetails).map(([k, v]) => (
+                <span key={k} style={{ marginRight: 10 }}>{k}: {typeof v === 'number' ? v.toFixed(4) : v}</span>
+              ))}
+            </div>
+          )}
+          {c.snippet && <div style={{ color: '#666', marginTop: 2, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{c.snippet}</div>}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const LogManagement: React.FC<Props> = ({ onBack }) => {
   const [logs, setLogs] = useState<RequestLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -92,6 +149,13 @@ const LogManagement: React.FC<Props> = ({ onBack }) => {
               <Descriptions.Item label="问题" span={2}>{r.question}</Descriptions.Item>
               <Descriptions.Item label="回答" span={2}>{r.answer ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="命中文档" span={2}>{r.hitDocuments || '—'}</Descriptions.Item>
+              <Descriptions.Item label="召回 chunk" span={2}>{renderChunks(r.retrievedChunks)}</Descriptions.Item>
+              <Descriptions.Item label="重排候选" span={2}>{renderChunks(r.rerankCandidates)}</Descriptions.Item>
+              <Descriptions.Item label="发送给 LLM 的内容" span={2}>
+                {r.prompt ? (
+                  <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: 300, overflowY: 'auto', fontFamily: 'monospace', fontSize: 12 }}>{r.prompt}</div>
+                ) : '—'}
+              </Descriptions.Item>
               <Descriptions.Item label="LLM 调用次数">{r.llmCallCount}</Descriptions.Item>
               <Descriptions.Item label="总耗时">{r.responseTimeMs}ms</Descriptions.Item>
               <Descriptions.Item label="检索延迟">{r.retrievalLatencyMs}ms</Descriptions.Item>

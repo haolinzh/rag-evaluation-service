@@ -43,6 +43,15 @@ public class RequestLog {
     @Column(name = "hit_documents", columnDefinition = "TEXT")
     private String hitDocuments;
 
+    @Column(name = "retrieved_chunks", columnDefinition = "TEXT")
+    private String retrievedChunks;
+
+    @Column(name = "rerank_candidates", columnDefinition = "TEXT")
+    private String rerankCandidates;
+
+    @Column(columnDefinition = "TEXT")
+    private String prompt;
+
     @Column(name = "response_time_ms")
     private long responseTimeMs;
 

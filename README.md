@@ -171,19 +171,26 @@ rag-evaluation-service/
 ### 0. 前置条件
 
 - Docker Desktop（或 Docker Engine + Compose）
-- JDK 17（建议 Temurin 17）
-- Maven 3.9+
-- Node.js 18+
 - 一个百炼 DashScope API Key（[申请地址](https://bailian.console.aliyun.com/)）
+- （仅本地开发调试后端时需要）JDK 17、Maven 3.9+、Node.js 18+
 
-### 1. 启动基础设施
+### 1. 配置 API Key
+
+```bash
+cp .env.example .env
+# 编辑 .env，填入 DASHSCOPE_API_KEY=sk-xxxx
+```
+
+> `.env` 已被 `.gitignore` 忽略，不会提交到仓库。
+
+### 2. 一键启动（基础设施 + 后端）
 
 ```bash
 cd rag-evaluation-service
-docker-compose up -d
+docker-compose up -d --build
 ```
 
-启动三个容器：PostgreSQL (5432)、Elasticsearch (9200)、Redis (6379)。首次启动会自动执行 `init-db.sql` 创建 `vector_chunks` 表与 IVF-Flat 索引。
+一次启动四个容器：PostgreSQL (5432)、Elasticsearch (9200)、Redis (6379) 与后端 (8080)。后端镜像内置 `tesseract-ocr` + 中文语言包（`chi_sim`），扫描版 PDF 会自动 OCR 入库，宿主机无需额外安装。首次启动会自动执行 `init-db.sql` 创建 `vector_chunks` 表与 IVF-Flat 索引。
 
 验证健康状态：
 
@@ -191,29 +198,10 @@ docker-compose up -d
 docker-compose ps
 ```
 
-### 2. 启动后端
+### 3. 语料入库
 
-```bash
-cd backend
-export DASHSCOPE_API_KEY="sk-xxxx"   # 你的百炼 API Key
-mvn spring-boot:run
-```
-
-后端默认运行在 `http://localhost:8080`。
-
-> 国内环境建议显式指定 JDK 17（如 `JAVA_HOME=/path/to/temurin-17 mvn spring-boot:run`），避免 Homebrew 默认高版本 JDK 与 Lombok 不兼容。
-
-### 3. 语料入库（批量管道）
-
-准备一个包含 PDF/DOCX/TXT 的目录，然后以管道模式启动：
-
-```bash
-cd backend
-mvn spring-boot:run \
-  -Dspring-boot.run.arguments="--pipeline=/path/to/your/docs"
-```
-
-管道会解析 → 分块 → embedding → 写入 ES 与 pgvector，完成后自动退出。也可以通过前端「文档上传」按钮单文件入库。
+- **前端上传**（推荐）：左侧「文档上传」按钮，支持 PDF/DOCX/TXT；数字原生 PDF 走文本提取，扫描版 PDF 自动 OCR，均标记 `source_type`。
+- **批量管道**：见下方「本地开发」的宿主机管道方式。
 
 ### 4. 启动前端
 
@@ -224,6 +212,26 @@ npm run dev
 ```
 
 前端运行在 `http://localhost:3000`，Vite 已配置 `/api` → `localhost:8080` 代理。
+
+### 本地开发（宿主机直接跑后端）
+
+```bash
+cd backend
+export DASHSCOPE_API_KEY="sk-xxxx"
+JAVA_HOME=/path/to/temurin-17 mvn spring-boot:run
+```
+
+> 宿主机方式如需扫描件 OCR，请自行安装 `tesseract` 及中文语言包：macOS `brew install tesseract tesseract-lang`，Linux `apt install tesseract-ocr tesseract-ocr-chi-sim`。可在 `application.yml` 中设 `ocr.enabled: false` 关闭 OCR。
+
+批量管道（宿主机方式）：
+
+```bash
+cd backend
+mvn spring-boot:run \
+  -Dspring-boot.run.arguments="--pipeline=/path/to/your/docs"
+```
+
+管道会解析 → 分块 → embedding → 写入 ES 与 pgvector，完成后自动退出。
 
 ---
 

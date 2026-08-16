@@ -49,6 +49,7 @@ export interface ChatMessage {
   createdAt: string;
   thinking?: string | null;
   retrievalMode?: string | null;
+  refusal?: boolean | null;
   sources?: string | null;
 }
 
@@ -74,6 +75,9 @@ export interface RequestLog {
   model: string;
   retrievalMode: string;
   hitDocuments: string;
+  retrievedChunks: string | null;
+  rerankCandidates: string | null;
+  prompt: string | null;
   responseTimeMs: number;
   llmCallCount: number;
   cacheHit: boolean;
