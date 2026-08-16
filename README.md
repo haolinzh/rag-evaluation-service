@@ -172,7 +172,7 @@ rag-evaluation-service/
 
 - Docker Desktop（或 Docker Engine + Compose）
 - 一个百炼 DashScope API Key（[申请地址](https://bailian.console.aliyun.com/)）
-- （仅本地开发调试后端时需要）JDK 17、Maven 3.9+、Node.js 18+
+- （仅本地开发调试时需要）JDK 17、Maven 3.9+（后端）、Node.js 18+（前端）
 
 ### 1. 配置 API Key
 
@@ -183,14 +183,14 @@ cp .env.example .env
 
 > `.env` 已被 `.gitignore` 忽略，不会提交到仓库。
 
-### 2. 一键启动（基础设施 + 后端）
+### 2. 一键启动（全部服务）
 
 ```bash
 cd rag-evaluation-service
 docker-compose up -d --build
 ```
 
-一次启动四个容器：PostgreSQL (5432)、Elasticsearch (9200)、Redis (6379) 与后端 (8080)。后端镜像内置 `tesseract-ocr` + 中文语言包（`chi_sim`），扫描版 PDF 会自动 OCR 入库，宿主机无需额外安装。首次启动会自动执行 `init-db.sql` 创建 `vector_chunks` 表与 IVF-Flat 索引。
+一次启动五个容器：PostgreSQL (5432)、Elasticsearch (9200)、Redis (6379)、后端 (8080) 与前端 (3000)。后端镜像内置 `tesseract-ocr` + 中文语言包（`chi_sim`），扫描版 PDF 会自动 OCR 入库；前端镜像内置 nginx，托管构建产物并反代 `/api` 到后端。宿主机只需 Docker，无需安装 JDK/Node/tesseract。首次启动会自动执行 `init-db.sql` 创建 `vector_chunks` 表与 IVF-Flat 索引。
 
 验证健康状态：
 
@@ -203,15 +203,11 @@ docker-compose ps
 - **前端上传**（推荐）：左侧「文档上传」按钮，支持 PDF/DOCX/TXT；数字原生 PDF 走文本提取，扫描版 PDF 自动 OCR，均标记 `source_type`。
 - **批量管道**：见下方「本地开发」的宿主机管道方式。
 
-### 4. 启动前端
+### 4. 访问前端
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+浏览器打开 `http://localhost:3000`。前端已容器化（nginx 托管静态产物 + 反代 `/api` 到后端），无需单独启动。
 
-前端运行在 `http://localhost:3000`，Vite 已配置 `/api` → `localhost:8080` 代理。
+> 仅前端本地开发调试时：`cd frontend && npm install && npm run dev`（Vite 热更新，`/api` 代理到 `localhost:8080`）。
 
 ### 本地开发（宿主机直接跑后端）
 
