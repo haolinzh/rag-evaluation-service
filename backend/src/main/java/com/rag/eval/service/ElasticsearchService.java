@@ -28,6 +28,7 @@ public class ElasticsearchService {
         try {
             esClient.deleteByQuery(d -> d
                 .index(esIndexName)
+                .refresh(true)
                 .query(q -> q.term(t -> t.field("file_name.keyword").value(fileName))));
         } catch (Exception e) {
             System.err.println("ES delete failed: " + e.getMessage());

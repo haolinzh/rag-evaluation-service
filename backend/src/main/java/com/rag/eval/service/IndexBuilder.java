@@ -1,6 +1,7 @@
 package com.rag.eval.service;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.Refresh;
 import co.elastic.clients.elasticsearch.core.BulkRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -63,6 +64,10 @@ public class IndexBuilder {
     private void indexToES(List<ChunkData> batch) {
         try {
             var bulkBuilder = new BulkRequest.Builder();
+            // Refresh so freshly indexed chunks are immediately searchable — a
+            // delete-by-query that runs right after would otherwise miss chunks
+            // that are still sitting in an unrefreshed segment.
+            bulkBuilder.refresh(Refresh.True);
             for (ChunkData chunk : batch) {
                 Map<String, Object> doc = Map.of(
                     "chunk_id", chunk.getChunkId(),

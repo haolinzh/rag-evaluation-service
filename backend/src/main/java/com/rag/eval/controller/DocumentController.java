@@ -1,16 +1,13 @@
 package com.rag.eval.controller;
 
-import com.rag.eval.exception.DuplicateDocumentException;
 import com.rag.eval.model.ChunkConfig;
 import com.rag.eval.model.ChunkPreview;
 import com.rag.eval.model.DocumentMeta;
 import com.rag.eval.service.DocumentService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -49,10 +46,5 @@ public class DocumentController {
     @GetMapping("/{id}/chunks")
     public ResponseEntity<List<ChunkPreview>> chunks(@PathVariable Long id) {
         return ResponseEntity.ok(documentService.getChunkPreviews(id));
-    }
-
-    @ExceptionHandler(DuplicateDocumentException.class)
-    public ResponseEntity<Map<String, String>> handleDuplicate(DuplicateDocumentException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", e.getMessage()));
     }
 }

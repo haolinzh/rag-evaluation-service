@@ -1,6 +1,5 @@
 package com.rag.eval.service;
 
-import com.rag.eval.exception.DuplicateDocumentException;
 import com.rag.eval.model.ChunkConfig;
 import com.rag.eval.model.ChunkPreview;
 import com.rag.eval.model.DocumentMeta;
@@ -9,7 +8,6 @@ import com.rag.eval.repository.VectorChunkRepo;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.util.List;
 
 @Service
@@ -39,14 +37,15 @@ public class DocumentService {
 
     public DocumentMeta ingest(MultipartFile file, ChunkConfig config) throws Exception {
         String fileName = file.getOriginalFilename();
-        if (docRepo.findByFileName(fileName).isPresent()) {
-            throw new DuplicateDocumentException("文件已存在: " + fileName);
-        }
+        // Parse first: a corrupt upload fails before the existing version is removed.
         DocumentParserService.ParsedDocument parsed = parser.parse(file.getInputStream(), fileName);
         List<ChunkData> chunks = parser.splitAndEnrich(parsed.text(), fileName, parsed.sourceType(), config);
         for (int i = 0; i < chunks.size(); i++) {
             chunks.get(i).setChunkIndex(i);
         }
+
+        // Same-name re-upload replaces the previous version.
+        docRepo.findByFileName(fileName).ifPresent(this::deleteExisting);
 
         indexBuilder.buildIndex(chunks);
 
@@ -72,11 +71,13 @@ public class DocumentService {
     }
 
     public void deleteById(Long id) {
-        docRepo.findById(id).ifPresent(meta -> {
-            vectorChunkRepo.deleteByFileName(meta.getFileName());
-            esService.deleteByFileName(meta.getFileName());
-            docRepo.delete(meta);
-            cacheService.clear();
-        });
+        docRepo.findById(id).ifPresent(this::deleteExisting);
+    }
+
+    private void deleteExisting(DocumentMeta meta) {
+        vectorChunkRepo.deleteByFileName(meta.getFileName());
+        esService.deleteByFileName(meta.getFileName());
+        docRepo.delete(meta);
+        cacheService.clear();
     }
 }
