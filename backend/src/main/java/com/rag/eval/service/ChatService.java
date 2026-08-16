@@ -124,7 +124,7 @@ public class ChatService {
                 .collect(Collectors.joining(", "));
             metrics.setRetrievalLatencyMs(Duration.between(retrievalStart, Instant.now()).toMillis());
             metrics.setChunksRetrieved(chunks.size());
-            metrics.setMaxChunkScore(chunks.stream().mapToDouble(SearchResult::getScore).max().orElse(0.0));
+            metrics.setMaxChunkScore(chunks.stream().mapToDouble(SearchResult::getConfidenceScore).max().orElse(0.0));
             metrics.setKeywordCount(rr.keywordCount());
             metrics.setVectorCount(rr.vectorCount());
             metrics.setOverlapCount(rr.overlapCount());
@@ -226,7 +226,7 @@ public class ChatService {
                     String snippet = redacted.length() > 200 ? redacted.substring(0, 200) : redacted;
                     return new Source(c.getFileName(), snippet, c.getScore(), c.getSource());
                 })
-                .collect(Collectors.toMap(Source::getFileName, s -> s, (a, b) -> a))
+                .collect(Collectors.toMap(Source::getFileName, s -> s, (a, b) -> a, LinkedHashMap::new))
                 .values().stream().toList();
 
             ChatResponse response = new ChatResponse(answerText, gen.thinking(), effectiveMode, sources, false, null);
@@ -340,7 +340,7 @@ public class ChatService {
                 .collect(Collectors.joining(", "));
             metrics.setRetrievalLatencyMs(Duration.between(retrievalStart, Instant.now()).toMillis());
             metrics.setChunksRetrieved(chunks.size());
-            metrics.setMaxChunkScore(chunks.stream().mapToDouble(SearchResult::getScore).max().orElse(0.0));
+            metrics.setMaxChunkScore(chunks.stream().mapToDouble(SearchResult::getConfidenceScore).max().orElse(0.0));
             metrics.setKeywordCount(rr.keywordCount());
             metrics.setVectorCount(rr.vectorCount());
             metrics.setOverlapCount(rr.overlapCount());
@@ -455,7 +455,7 @@ public class ChatService {
                     String snippet = r.length() > 200 ? r.substring(0, 200) : r;
                     return new Source(c.getFileName(), snippet, c.getScore(), c.getSource());
                 })
-                .collect(Collectors.toMap(Source::getFileName, s -> s, (a, b) -> a))
+                .collect(Collectors.toMap(Source::getFileName, s -> s, (a, b) -> a, LinkedHashMap::new))
                 .values().stream().toList();
 
             ChatResponse response = new ChatResponse(redacted, thinkingText, effectiveMode, sources, false, null);

@@ -27,4 +27,16 @@ public class SearchResult {
         private Double semanticScore;
         private Double rrfScore;
     }
+
+    /**
+     * The 0..1 semantic similarity when available; otherwise the fusion/rank
+     * score. This is the single "confidence" signal the safety gate relies on,
+     * kept on a consistent scale (unlike the RRF score, which is 1/(k+rank)).
+     */
+    public double getConfidenceScore() {
+        if (sourceDetails != null && sourceDetails.getSemanticScore() != null) {
+            return sourceDetails.getSemanticScore();
+        }
+        return score;
+    }
 }

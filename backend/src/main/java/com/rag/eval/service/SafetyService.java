@@ -57,11 +57,8 @@ public class SafetyService {
     }
 
     private double confidenceScore(SearchResult c) {
-        // Prefer the raw semantic similarity (0..1) over the RRF fusion score,
-        // which lives on a different scale (1/(k+rank)).
-        var d = c.getSourceDetails();
-        if (d != null && d.getSemanticScore() != null) return d.getSemanticScore();
-        return c.getScore();
+        // Semantic similarity (0..1) when present; RRF/rank score as fallback.
+        return c.getConfidenceScore();
     }
 
     public record SafetyResult(SafetyService.Decision decision, boolean allowed) {}
