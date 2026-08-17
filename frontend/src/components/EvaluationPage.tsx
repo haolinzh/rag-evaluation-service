@@ -130,11 +130,11 @@ const EvaluationPage: React.FC<Props> = ({ onBack }) => {
       render: (v: boolean) => (v ? <Tag color="red">拒答</Tag> : <Tag color="green">回答</Tag>),
     },
     { title: '延迟(ms)', dataIndex: 'latencyMs', key: 'latencyMs', width: 90, render: (v: number) => fmt(v, 0) },
-    { title: 'F', dataIndex: 'faithfulness', key: 'faithfulness', width: 56, render: (v: number) => fmt(v, 2) },
-    { title: 'CP', dataIndex: 'contextPrecision', key: 'contextPrecision', width: 56, render: (v: number) => fmt(v, 2) },
-    { title: 'AC', dataIndex: 'answerCompliance', key: 'answerCompliance', width: 56, render: (v: number) => fmt(v, 2) },
-    { title: 'RA', dataIndex: 'refusalAppropriate', key: 'refusalAppropriate', width: 56, render: (v: number) => fmt(v, 2) },
-    { title: 'SC', dataIndex: 'styleConsistent', key: 'styleConsistent', width: 56, render: (v: number) => fmt(v, 2) },
+    { title: 'Faithfulness', dataIndex: 'faithfulness', key: 'faithfulness', width: 110, render: (v: number) => fmt(v, 2) },
+    { title: 'Context Precision', dataIndex: 'contextPrecision', key: 'contextPrecision', width: 130, render: (v: number) => fmt(v, 2) },
+    { title: 'Answer Compliance', dataIndex: 'answerCompliance', key: 'answerCompliance', width: 130, render: (v: number) => fmt(v, 2) },
+    { title: 'Refusal Appropriateness', dataIndex: 'refusalAppropriate', key: 'refusalAppropriate', width: 150, render: (v: number) => fmt(v, 2) },
+    { title: 'Style Consistency', dataIndex: 'styleConsistent', key: 'styleConsistent', width: 120, render: (v: number) => fmt(v, 2) },
   ];
 
   const expandedRowRender = (r: EvaluationQuestionResult) => (
@@ -240,6 +240,7 @@ const EvaluationPage: React.FC<Props> = ({ onBack }) => {
                   pagination={false}
                   size="small"
                   rowKey="questionId"
+                  scroll={{ x: 'max-content' }}
                   expandable={{ expandedRowRender, rowExpandable: () => true }}
                 />
               ),
