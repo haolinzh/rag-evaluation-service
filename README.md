@@ -3,23 +3,23 @@
 - [界面预览](#界面预览)
 - [核心特性](#核心特性)
 - [快速开始](#快速开始)
-  - [0. 前置条件](#0-前置条件)
-  - [1. 配置 API Key](#1-配置-api-key)
-  - [2. 一键启动](#2-一键启动)
-  - [3. 语料入库](#3-语料入库)
-  - [4. 访问前端](#4-访问前端)
+  - [1. 前置条件](#1-前置条件)
+  - [2. 配置 API Key](#2-配置-api-key)
+  - [3. 一键启动](#3-一键启动)
+  - [4. 语料入库](#4-语料入库)
+  - [5. 访问前端](#5-访问前端)
 - [交付文档](#交付文档)
-  - [评测](#评测)
-  - [运维指标报告](#运维指标报告)
-  - [请求日志](#请求日志)
-  - [配置说明](#配置说明)
+  - [1. 评测](#1-评测)
+  - [2. 运维指标报告](#2-运维指标报告)
+  - [3. 请求日志](#3-请求日志)
+  - [4. 配置说明](#4-配置说明)
 - [技术设计](#技术设计)
-  - [技术栈](#技术栈)
-  - [架构](#架构)
-  - [项目结构](#项目结构)
-  - [API 接口](#api-接口)
-  - [检索模式与 RRF](#检索模式与-rrf)
-  - [PDF Chunk 策略](#pdf-chunk-策略)
+  - [1. 技术栈](#1-技术栈)
+  - [2. 架构](#2-架构)
+  - [3. 项目结构](#3-项目结构)
+  - [4. API 接口](#4-api-接口)
+  - [5. 检索模式与 RRF](#5-检索模式与-rrf)
+  - [6. PDF Chunk 策略](#6-pdf-chunk-策略)
 
 ---
 
@@ -70,12 +70,12 @@
 
 ## 快速开始
 
-### 0. 前置条件
+### 1. 前置条件
 
 - Docker Desktop（或 Docker Engine + Compose）
 - 一个百炼 DashScope API Key（[申请地址](https://bailian.console.aliyun.com/)）
 
-### 1. 初始化 API Key
+### 2. 配置 API Key
 
 支持两种方式，二选一：
 
@@ -95,7 +95,7 @@ cp .env.example .env
 - 两种方式均持久化；**UI 配置写入 `system_config` 表（`dashscope.api-key`），优先级高于环境变量**，清除后回退到 `.env` 的 `DASHSCOPE_API_KEY`。
 - 出于安全，接口只回显脱敏尾号（如 `sk-****550e`），永不回显完整 Key。
 
-### 2. 一键启动
+### 3. 一键启动
 
 ```bash
 cd rag-evaluation-service
@@ -110,14 +110,14 @@ docker-compose up -d --build
 docker-compose ps
 ```
 
-### 3. 语料入库
+### 4. 语料入库
 
 两种方式：
 
 - **手动上传**：左侧「文档上传」按钮上传文件，支持 PDF / DOCX / TXT；数字原生 PDF 走文本提取，扫描版 PDF 自动 OCR，均标记 `source_type`。
 - **测评前自动入库**：`test-docs/` 目录预置 8 份 case study 语料，通过 `docker-compose` 只读挂载到后端容器（`/data/corpus`）。点击「测评」时，后端会逐条检查这 8 份语料是否已入库，缺失的自动解析/分块/向量化并写入 ES + pgvector，无需手动上传。
 
-### 4. 访问前端
+### 5. 访问前端
 
 浏览器打开 `http://localhost:3000`。前端已容器化（nginx 托管静态产物 + 反代 `/api` 到后端），无需单独启动。
 
@@ -133,7 +133,7 @@ docker-compose ps
 | [问题诊断报告](docs/ISSUE_DIAGNOSIS.md) | 5 个已修复问题的证据 + 前后量化对比 |
 | [问题诊断指南](docs/TROUBLESHOOTING.md) | 按症状排查 + 定位命令 |
 
-### 评测
+### 1. 评测
 
 评测用于**对比不同检索模式的效果**（`hybrid` vs `vector` vs `hybrid-rerank`），回答「哪种召回策略更好」这一 case study 的核心问题。评测已内置为前端「测评」页 + 后端 `EvaluationService`（指标算法与 `evaluation/evaluate.py` 一致，已迁移至 Java），不再依赖独立 Python 脚本。
 
@@ -176,7 +176,7 @@ docker-compose ps
 
 实测三模式对比数据见 [docs/EVALUATION_REPORT.md](docs/EVALUATION_REPORT.md)。
 
-### 运维指标报告
+### 2. 运维指标报告
 
 后端采集每请求指标，通过 CSV 接口导出：
 
@@ -186,7 +186,7 @@ curl -O localhost:8080/api/report/csv
 
 CSV 包含逐请求明细（检索/生成/总延迟、prompt/completion token、缓存命中、拒答、脱敏次数、chunk 数、最高相似度、答案合规分）与汇总行（总请求数、p50/p95 延迟、缓存命中率、拒答率、答案合规率）。
 
-### 请求日志
+### 3. 请求日志
 
 后端将每次问答请求以「请求」为 entry 持久化到 PostgreSQL（`request_log` 表），字段包括：请求 ID、时间、问题、回答、session、模型、检索模式、命中文档、总/检索/生成延迟、LLM 调用次数、prompt/completion token、缓存命中、拒答及原因、召回 chunk 数、最高相似度、PII 脱敏数、状态（`success` / `refused` / `error`）。
 
@@ -197,7 +197,7 @@ CSV 包含逐请求明细（检索/生成/总延迟、prompt/completion token、
 
 接口：`GET /api/logs?limit=N`（默认 100，上限 1000）、`DELETE /api/logs`。
 
-### 配置说明
+### 4. 配置说明
 
 检索参数、模型选择、安全阈值、语义缓存开关均支持在运行时通过前端「系统配置」页（`GET/PUT /api/config`）热更新，持久化到 `system_config` 表，无需重启。以下基础设施连接与 API Key 通过环境变量覆盖（见 `application.yml`）：
 
@@ -214,7 +214,7 @@ CSV 包含逐请求明细（检索/生成/总延迟、prompt/completion token、
 
 ## 技术设计
 
-### 技术栈
+### 1. 技术栈
 
 | 层 | 技术 |
 |---|---|
@@ -227,7 +227,7 @@ CSV 包含逐请求明细（检索/生成/总延迟、prompt/completion token、
 | 前端 | React 18 + TypeScript + Vite + Ant Design 5 + react-resizable-panels（可拖动分栏） |
 | 评测 | 后端 Java（`EvaluationService`，语义代理 + 规则代理，SSE 流式，结果持久化） |
 
-### 架构
+### 2. 架构
 
 ```
                          ┌─────────────────────────────────────────┐
@@ -278,7 +278,7 @@ RRF_score(d) = Σ 1 / (k + rank_i(d))
 
 同时出现在 ES 与向量结果前列的 chunk 得分自然放大；只出现在单一列表的 chunk 仍会保留贡献。确定性、零额外 API 成本、零额外延迟。
 
-### 项目结构
+### 3. 项目结构
 
 ```
 rag-evaluation-service/
@@ -319,7 +319,7 @@ rag-evaluation-service/
     └── run_all.sh                  # 一键评测驱动
 ```
 
-### API 接口
+### 4. API 接口
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -367,7 +367,7 @@ curl -X POST localhost:8080/api/chat \
 }
 ```
 
-### 检索模式与 RRF
+### 5. 检索模式与 RRF
 
 三种模式，可在前端「检索模式」下拉中切换（也支持请求体 `mode` 字段指定）：
 
@@ -389,7 +389,7 @@ retrieval:
   similarity-threshold: 0.4
 ```
 
-### PDF Chunk 策略
+### 6. PDF Chunk 策略
 
 针对 case study 的三种语料类型分别处理：
 
