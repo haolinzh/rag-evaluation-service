@@ -58,11 +58,13 @@ services:
       REDIS_PORT: "6379"
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
       UPLOAD_DIR: /data/uploads
+      CORPUS_DIR: /data/corpus
       JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Shanghai
     ports:
       - "8080:8080"
     volumes:
       - uploads:/data/uploads
+      - ./test-docs:/data/corpus:ro
     depends_on:
       postgres:
         condition: service_healthy

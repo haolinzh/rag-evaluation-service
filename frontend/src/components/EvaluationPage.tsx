@@ -44,6 +44,7 @@ const EvaluationPage: React.FC<Props> = ({ onBack }) => {
   const [summaries, setSummaries] = useState<EvaluationSummary[]>([]);
   const [resultsByMode, setResultsByMode] = useState<Record<string, EvaluationQuestionResult[]>>({});
   const [error, setError] = useState<string | null>(null);
+  const [ingestStatus, setIngestStatus] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEvaluationQuestions().then((qs) => setQuestionCount(qs.length)).catch(() => {});
@@ -51,7 +52,29 @@ const EvaluationPage: React.FC<Props> = ({ onBack }) => {
 
   const handleEvent = (evt: EvaluationEvent) => {
     switch (evt.type) {
+      case 'ingest_start':
+        setIngestStatus(`正在检查并入库 ${evt.total} 份语料…`);
+        break;
+      case 'ingesting':
+        setIngestStatus(`入库中：${evt.fileName}`);
+        break;
+      case 'ingested':
+        setIngestStatus(`已入库：${evt.fileName}（${evt.chunks} 块）`);
+        break;
+      case 'ingest_error':
+        setIngestStatus(`入库失败：${evt.fileName} — ${evt.message}`);
+        break;
+      case 'ingest_done':
+        if (evt.failed && evt.failed.length > 0) {
+          setIngestStatus(`语料入库完成：${evt.ingested} 成功，${evt.failed.length} 失败（${evt.failed.join('、')}）`);
+        } else if (evt.ingested > 0) {
+          setIngestStatus(`语料入库完成（新增 ${evt.ingested} 份）`);
+        } else {
+          setIngestStatus(null);
+        }
+        break;
       case 'start':
+        setIngestStatus(null);
         setTotalCount(evt.modes.length * evt.totalQuestions);
         break;
       case 'mode_start':
@@ -100,6 +123,7 @@ const EvaluationPage: React.FC<Props> = ({ onBack }) => {
     setTotalCount(0);
     setCurrentMode(null);
     setCurrentQuestion(null);
+    setIngestStatus(null);
     try {
       await runEvaluation(runModes, clearCache, handleEvent);
     } catch (e: any) {
@@ -202,6 +226,9 @@ const EvaluationPage: React.FC<Props> = ({ onBack }) => {
         <Card size="small" style={{ marginBottom: 16 }}>
           <Space direction="vertical" style={{ width: '100%' }}>
             <Progress percent={progressPercent} status="active" />
+            {ingestStatus && (
+              <Typography.Text type="secondary">{ingestStatus}</Typography.Text>
+            )}
             <Typography.Text type="secondary">
               {currentMode ? `当前模式：${currentMode}` : '准备中…'}
               {currentQuestion ? `　|　${currentQuestion}` : ''}

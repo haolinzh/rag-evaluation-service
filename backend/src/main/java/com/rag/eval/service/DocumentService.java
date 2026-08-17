@@ -43,9 +43,11 @@ public class DocumentService {
     }
 
     public DocumentMeta ingest(MultipartFile file, ChunkConfig config) throws Exception {
-        String fileName = file.getOriginalFilename();
-        byte[] bytes = file.getBytes();
-        // Parse first: a corrupt upload fails before the existing version is removed.
+        return ingestBytes(file.getOriginalFilename(), file.getBytes(), file.getSize(), config);
+    }
+
+    public DocumentMeta ingestBytes(String fileName, byte[] bytes, long fileSize, ChunkConfig config) throws Exception {
+        // Parse first: a corrupt file fails before the existing version is removed.
         DocumentParserService.ParsedDocument parsed = parser.parse(new ByteArrayInputStream(bytes), fileName);
         List<ChunkData> chunks = parser.splitAndEnrich(parsed.text(), fileName, parsed.sourceType(), config);
         for (int i = 0; i < chunks.size(); i++) {
@@ -67,7 +69,7 @@ public class DocumentService {
         indexBuilder.buildIndex(chunks);
 
         meta.setFileName(fileName);
-        meta.setFileSize(file.getSize());
+        meta.setFileSize(fileSize);
         meta.setChunkCount(chunks.size());
         meta.setSplitMode(config.splitMode());
         meta.setChunkSize(config.chunkSize());

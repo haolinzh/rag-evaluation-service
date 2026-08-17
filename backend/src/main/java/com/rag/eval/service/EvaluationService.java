@@ -25,15 +25,18 @@ public class EvaluationService {
     private final ChatService chatService;
     private final DashScopeService dashScope;
     private final SemanticCacheService cacheService;
+    private final CorpusService corpusService;
     private final ObjectMapper objectMapper;
 
     public EvaluationService(ChatService chatService,
                              DashScopeService dashScope,
                              SemanticCacheService cacheService,
+                             CorpusService corpusService,
                              ObjectMapper objectMapper) {
         this.chatService = chatService;
         this.dashScope = dashScope;
         this.cacheService = cacheService;
+        this.corpusService = corpusService;
         this.objectMapper = objectMapper;
     }
 
@@ -49,6 +52,8 @@ public class EvaluationService {
     }
 
     public void runEvaluation(List<String> modes, boolean clearCache, Consumer<Map<String, Object>> onEvent) {
+        corpusService.ensureIngested(onEvent);
+
         List<String> effectiveModes = (modes == null || modes.isEmpty())
             ? List.of("hybrid", "vector", "hybrid-rerank")
             : modes.stream().map(this::normalizeMode).distinct().toList();

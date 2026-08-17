@@ -74,6 +74,9 @@ ocr:
 storage:
   upload-dir: ${UPLOAD_DIR:/data/uploads}
 
+corpus:
+  dir: ${CORPUS_DIR:./test-docs}
+
 logging:
   level:
     com.rag.eval: DEBUG

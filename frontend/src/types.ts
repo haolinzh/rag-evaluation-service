@@ -176,6 +176,11 @@ export interface EvaluationReport {
 }
 
 export type EvaluationEvent =
+  | { type: 'ingest_start'; missing: string[]; total: number }
+  | { type: 'ingesting'; fileName: string }
+  | { type: 'ingested'; fileName: string; chunks: number }
+  | { type: 'ingest_error'; fileName: string; message: string }
+  | { type: 'ingest_done'; ingested: number; failed: string[]; skipped?: number }
   | { type: 'start'; modes: string[]; totalQuestions: number }
   | { type: 'mode_start'; mode: string; index: number; totalModes: number }
   | { type: 'question_start'; mode: string; questionId: string; index: number; total: number; question: string }
