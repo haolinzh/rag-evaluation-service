@@ -37,8 +37,6 @@
 
 ![文档管理页](docs/screenshot-documents.jpg)
 
-![日志管理页](docs/screenshot-log-management.jpg)
-
 ![日志详情](docs/screenshot-log-detail.jpg)
 
 ![系统配置页](docs/screenshot-config.jpg)
