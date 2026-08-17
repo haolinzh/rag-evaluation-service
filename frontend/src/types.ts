@@ -175,6 +175,12 @@ export interface EvaluationReport {
   results: Record<string, EvaluationQuestionResult[]>;
 }
 
+export interface EvaluationRunMeta {
+  id: number;
+  createdAt: string;
+  modes: string[];
+}
+
 export type EvaluationEvent =
   | { type: 'ingest_start'; missing: string[]; total: number }
   | { type: 'ingesting'; fileName: string }

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { DocumentMeta, ChatResponse, ChatMessage, OpsReport, ChunkConfig, ChunkPreview, RequestLog, SystemConfig, Source, EvaluationQuestion, EvaluationEvent } from './types';
+import type { DocumentMeta, ChatResponse, ChatMessage, OpsReport, ChunkConfig, ChunkPreview, RequestLog, SystemConfig, Source, EvaluationQuestion, EvaluationEvent, EvaluationReport, EvaluationRunMeta } from './types';
 
 const api = axios.create({ baseURL: '/api' });
 
@@ -154,6 +154,16 @@ export async function updateRetrievalMode(mode: string): Promise<SystemConfig> {
 
 export async function fetchEvaluationQuestions(): Promise<EvaluationQuestion[]> {
   const { data } = await api.get('/evaluation/questions');
+  return data;
+}
+
+export async function fetchEvaluationHistory(): Promise<EvaluationRunMeta[]> {
+  const { data } = await api.get('/evaluation/history');
+  return data;
+}
+
+export async function fetchEvaluationRun(id: number): Promise<EvaluationReport> {
+  const { data } = await api.get(`/evaluation/history/${id}`);
   return data;
 }
 

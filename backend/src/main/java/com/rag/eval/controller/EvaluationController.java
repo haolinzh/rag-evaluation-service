@@ -2,7 +2,9 @@ package com.rag.eval.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rag.eval.model.EvaluationQuestion;
+import com.rag.eval.model.EvaluationReport;
 import com.rag.eval.model.EvaluationRequest;
+import com.rag.eval.model.EvaluationRunMeta;
 import com.rag.eval.service.EvaluationService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -31,13 +33,28 @@ public class EvaluationController {
         return evaluationService.loadQuestions();
     }
 
+    @GetMapping("/history")
+    public List<EvaluationRunMeta> history() {
+        return evaluationService.listRuns();
+    }
+
+    @GetMapping("/history/{id}")
+    public EvaluationReport historyDetail(@PathVariable Long id) {
+        return evaluationService.getRun(id);
+    }
+
     @PostMapping(value = "/run", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter run(@RequestBody(required = false) EvaluationRequest request) {
         SseEmitter emitter = new SseEmitter(0L);
         List<String> modes = request == null ? null : request.getModes();
         boolean clearCache = request == null || request.isClearCache();
-        executor.execute(() -> evaluationService.runEvaluation(modes, clearCache,
-            event -> send(emitter, event)));
+        executor.execute(() -> {
+            try {
+                evaluationService.runEvaluation(modes, clearCache, event -> send(emitter, event));
+            } finally {
+                emitter.complete();
+            }
+        });
         return emitter;
     }
 

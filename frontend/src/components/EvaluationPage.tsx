@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Button, Typography, Space, Card, Checkbox, Switch, Progress, Table, Tabs, Tag, Alert, Spin, Empty,
+  Button, Typography, Space, Card, Checkbox, Switch, Progress, Table, Tabs, Tag, Alert, Spin, Empty, Select,
 } from 'antd';
 import { ArrowLeftOutlined, ExperimentOutlined, ThunderboltOutlined } from '@ant-design/icons';
-import { runEvaluation, fetchEvaluationQuestions } from '../api';
-import type { EvaluationEvent, EvaluationSummary, EvaluationQuestionResult } from '../types';
+import { runEvaluation, fetchEvaluationQuestions, fetchEvaluationHistory, fetchEvaluationRun } from '../api';
+import type { EvaluationEvent, EvaluationSummary, EvaluationQuestionResult, EvaluationRunMeta } from '../types';
 
 interface Props {
   onBack: () => void;
@@ -32,6 +32,10 @@ const METRICS: { key: MetricKey; label: string; digits: number }[] = [
 const fmt = (v: number | undefined | null, digits: number) =>
   typeof v === 'number' ? v.toFixed(digits) : '-';
 
+const formatTime = (iso: string) => (iso ? iso.replace('T', ' ').slice(0, 19) : '');
+
+const runLabel = (h: EvaluationRunMeta) => `#${h.id} · ${formatTime(h.createdAt)} · ${h.modes.join(' / ')}`;
+
 const EvaluationPage: React.FC<Props> = ({ onBack }) => {
   const [modes, setModes] = useState<string[]>(['vector', 'hybrid', 'hybrid-rerank']);
   const [clearCache, setClearCache] = useState(true);
@@ -45,10 +49,32 @@ const EvaluationPage: React.FC<Props> = ({ onBack }) => {
   const [resultsByMode, setResultsByMode] = useState<Record<string, EvaluationQuestionResult[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
+  const [history, setHistory] = useState<EvaluationRunMeta[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     fetchEvaluationQuestions().then((qs) => setQuestionCount(qs.length)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetchEvaluationHistory().then((list) => {
+      setHistory(list);
+      if (list.length > 0) setSelectedRunId(list[0].id);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (selectedRunId == null) return;
+    setHistoryLoading(true);
+    fetchEvaluationRun(selectedRunId)
+      .then((report) => {
+        setSummaries(report.summaries);
+        setResultsByMode(report.results);
+      })
+      .catch((e: any) => setError(e?.message ?? '加载历史测评失败'))
+      .finally(() => setHistoryLoading(false));
+  }, [selectedRunId]);
 
   const handleEvent = (evt: EvaluationEvent) => {
     switch (evt.type) {
@@ -105,6 +131,10 @@ const EvaluationPage: React.FC<Props> = ({ onBack }) => {
         setRunning(false);
         setCurrentMode(null);
         setCurrentQuestion(null);
+        fetchEvaluationHistory().then((list) => {
+          setHistory(list);
+          if (list.length > 0) setSelectedRunId(list[0].id);
+        }).catch(() => {});
         break;
       case 'error':
         setError(evt.message);
@@ -194,6 +224,17 @@ const EvaluationPage: React.FC<Props> = ({ onBack }) => {
           <ExperimentOutlined /> 一键测评
         </Typography.Title>
         {questionCount != null && <Tag>测试集 {questionCount} 题</Tag>}
+        {history.length > 0 && (
+          <Select
+            style={{ minWidth: 320 }}
+            value={selectedRunId ?? undefined}
+            onChange={(v) => setSelectedRunId(v)}
+            options={history.map((h) => ({ value: h.id, label: runLabel(h) }))}
+            loading={historyLoading}
+            disabled={running}
+            placeholder="历史测评"
+          />
+        )}
       </Space>
 
       <Card size="small" style={{ marginBottom: 16 }}>

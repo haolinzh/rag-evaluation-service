@@ -3,6 +3,7 @@ package com.rag.eval.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rag.eval.model.*;
+import com.rag.eval.repository.EvaluationRunRepo;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -26,17 +27,20 @@ public class EvaluationService {
     private final DashScopeService dashScope;
     private final SemanticCacheService cacheService;
     private final CorpusService corpusService;
+    private final EvaluationRunRepo runRepo;
     private final ObjectMapper objectMapper;
 
     public EvaluationService(ChatService chatService,
                              DashScopeService dashScope,
                              SemanticCacheService cacheService,
                              CorpusService corpusService,
+                             EvaluationRunRepo runRepo,
                              ObjectMapper objectMapper) {
         this.chatService = chatService;
         this.dashScope = dashScope;
         this.cacheService = cacheService;
         this.corpusService = corpusService;
+        this.runRepo = runRepo;
         this.objectMapper = objectMapper;
     }
 
@@ -114,7 +118,44 @@ public class EvaluationService {
         report.setModes(effectiveModes);
         report.setSummaries(summaries);
         report.setResults(allResults);
+        saveReport(report);
         emit(onEvent, Map.of("type", "done", "report", report));
+    }
+
+    public List<EvaluationRunMeta> listRuns() {
+        return runRepo.findAllByOrderByIdDesc().stream()
+            .map(r -> {
+                try {
+                    List<String> modes = objectMapper.readValue(r.getModes(), new TypeReference<List<String>>() {});
+                    return new EvaluationRunMeta(r.getId(), r.getCreatedAt(), modes);
+                } catch (Exception e) {
+                    return new EvaluationRunMeta(r.getId(), r.getCreatedAt(), List.of());
+                }
+            })
+            .toList();
+    }
+
+    public EvaluationReport getRun(Long id) {
+        return runRepo.findById(id)
+            .map(r -> {
+                try {
+                    return objectMapper.readValue(r.getReportJson(), EvaluationReport.class);
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to load evaluation report " + id, e);
+                }
+            })
+            .orElse(null);
+    }
+
+    private void saveReport(EvaluationReport report) {
+        try {
+            EvaluationRun run = new EvaluationRun();
+            run.setModes(objectMapper.writeValueAsString(report.getModes()));
+            run.setReportJson(objectMapper.writeValueAsString(report));
+            runRepo.save(run);
+        } catch (Exception e) {
+            System.err.println("Failed to persist evaluation report: " + e.getMessage());
+        }
     }
 
     private String normalizeMode(String m) {
