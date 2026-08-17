@@ -4,6 +4,19 @@
 
 set -e
 
+# Load the DashScope API key for the semantic embedding judge (never committed).
+if [ -f .env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . ./.env
+    set +a
+elif [ -f ../.env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . ../.env
+    set +a
+fi
+
 echo "=========================================="
 echo "  RAG Evaluation Pipeline"
 echo "=========================================="
