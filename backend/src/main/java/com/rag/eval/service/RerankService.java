@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rag.eval.model.SearchResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -25,14 +24,11 @@ public class RerankService {
     private static final String RERANK_URL =
         "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank";
 
-    private final String apiKey;
     private final ConfigService config;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
-    public RerankService(@Value("${dashscope.api-key}") String apiKey,
-                         ConfigService config) {
-        this.apiKey = apiKey;
+    public RerankService(ConfigService config) {
         this.config = config;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -56,7 +52,7 @@ public class RerankService {
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(RERANK_URL))
                 .timeout(Duration.ofSeconds(30))
-                .header("Authorization", "Bearer " + apiKey)
+                .header("Authorization", "Bearer " + resolveApiKey())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build();
@@ -95,5 +91,16 @@ public class RerankService {
             log.warn("Rerank failed, falling back to RRF order: {}", e.getMessage());
             return candidates.subList(0, limit);
         }
+    }
+
+    private String resolveApiKey() {
+        String key = config.get("dashscope.api-key", "");
+        if (key == null || key.isBlank()) {
+            key = System.getenv("DASHSCOPE_API_KEY");
+        }
+        if (key == null || key.isBlank()) {
+            throw new RuntimeException("DASHSCOPE_API_KEY not set");
+        }
+        return key;
     }
 }
