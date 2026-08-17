@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { DocumentMeta, ChatResponse, ChatMessage, OpsReport, ChunkConfig, ChunkPreview, RequestLog, SystemConfig, Source } from './types';
+import type { DocumentMeta, ChatResponse, ChatMessage, OpsReport, ChunkConfig, ChunkPreview, RequestLog, SystemConfig, Source, EvaluationQuestion, EvaluationEvent } from './types';
 
 const api = axios.create({ baseURL: '/api' });
 
@@ -150,4 +150,50 @@ export async function updateConfig(config: SystemConfig): Promise<SystemConfig> 
 export async function updateRetrievalMode(mode: string): Promise<SystemConfig> {
   const { data } = await api.put('/config/mode', { mode });
   return data;
+}
+
+export async function fetchEvaluationQuestions(): Promise<EvaluationQuestion[]> {
+  const { data } = await api.get('/evaluation/questions');
+  return data;
+}
+
+export async function runEvaluation(
+  modes: string[],
+  clearCache: boolean,
+  onEvent: (evt: EvaluationEvent) => void
+): Promise<void> {
+  const resp = await fetch('/api/evaluation/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ modes, clearCache }),
+  });
+
+  if (!resp.ok || !resp.body) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(text || `HTTP ${resp.status}`);
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf('\n\n')) >= 0) {
+      const rawEvent = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      for (const line of rawEvent.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (!data) continue;
+        try {
+          onEvent(JSON.parse(data) as EvaluationEvent);
+        } catch {
+          // ignore malformed chunk
+        }
+      }
+    }
+  }
 }

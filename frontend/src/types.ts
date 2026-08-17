@@ -128,3 +128,59 @@ export interface SystemConfig {
   modelOptions: ModelOption[];
   embeddingDimension: number;
 }
+
+export interface EvaluationQuestion {
+  id: string;
+  question: string;
+  language: string;
+  expectedType: string;
+  difficulty: string;
+}
+
+export interface EvaluationQuestionResult {
+  questionId: string;
+  question: string;
+  language: string;
+  expectedType: string;
+  answer: string;
+  retrievalMode: string;
+  refusal: boolean;
+  sources: Source[];
+  latencyMs: number;
+  faithfulness: number;
+  contextPrecision: number;
+  answerCompliance: number;
+  refusalAppropriate: number;
+  styleConsistent: number;
+  error?: string;
+}
+
+export interface EvaluationSummary {
+  mode: string;
+  totalQuestions: number;
+  answeredQuestions: number;
+  avgFaithfulness: number;
+  avgContextPrecision: number;
+  avgAnswerCompliance: number;
+  avgRefusalAppropriate: number;
+  avgStyleConsistent: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  avgLatencyMs: number;
+}
+
+export interface EvaluationReport {
+  modes: string[];
+  summaries: EvaluationSummary[];
+  results: Record<string, EvaluationQuestionResult[]>;
+}
+
+export type EvaluationEvent =
+  | { type: 'start'; modes: string[]; totalQuestions: number }
+  | { type: 'mode_start'; mode: string; index: number; totalModes: number }
+  | { type: 'question_start'; mode: string; questionId: string; index: number; total: number; question: string }
+  | { type: 'question_done'; mode: string; questionId: string; index: number; total: number; result: EvaluationQuestionResult }
+  | { type: 'question_error'; mode: string; questionId: string; index: number; total: number; question: string; message: string }
+  | { type: 'mode_done'; mode: string; summary: EvaluationSummary }
+  | { type: 'done'; report: EvaluationReport }
+  | { type: 'error'; message: string };

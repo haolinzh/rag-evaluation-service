@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, theme, Grid, Button, Drawer } from 'antd';
-import { FileTextOutlined, BarChartOutlined, SettingOutlined } from '@ant-design/icons';
+import { FileTextOutlined, BarChartOutlined, SettingOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import DocumentPanel from './components/DocumentPanel';
 import ChatPanel from './components/ChatPanel';
@@ -9,6 +9,7 @@ import LogPanel from './components/LogPanel';
 import DocumentManagement from './components/DocumentManagement';
 import LogManagement from './components/LogManagement';
 import ConfigPage from './components/ConfigPage';
+import EvaluationPage from './components/EvaluationPage';
 import type { DocumentMeta } from './types';
 import { listDocuments, fetchConfig, updateRetrievalMode } from './api';
 
@@ -17,7 +18,7 @@ const { Header, Content } = Layout;
 const App: React.FC = () => {
   const [documents, setDocuments] = useState<DocumentMeta[]>([]);
   const [retrievalMode, setRetrievalMode] = useState<string>('hybrid');
-  const [view, setView] = useState<'main' | 'documents' | 'logs' | 'config'>('main');
+  const [view, setView] = useState<'main' | 'documents' | 'logs' | 'config' | 'eval'>('main');
   const [docsOpen, setDocsOpen] = useState(false);
   const [metricsOpen, setMetricsOpen] = useState(false);
   const { token: { colorBgContainer } } = theme.useToken();
@@ -51,6 +52,10 @@ const App: React.FC = () => {
 
   if (view === 'config') {
     return <ConfigPage onBack={() => setView('main')} onSaved={setRetrievalMode} />;
+  }
+
+  if (view === 'eval') {
+    return <EvaluationPage onBack={() => setView('main')} />;
   }
 
   const documentPanel = (
@@ -89,6 +94,9 @@ const App: React.FC = () => {
           </Button>
         )}
         <span style={{ flex: 1, textAlign: isMobile ? 'center' : 'left' }}>RAG 知识库问答系统</span>
+        <Button type="text" icon={<ExperimentOutlined />} onClick={() => setView('eval')} style={{ color: '#fff' }}>
+          测评
+        </Button>
         <Button type="text" icon={<SettingOutlined />} onClick={() => setView('config')} style={{ color: '#fff' }}>
           配置
         </Button>
