@@ -23,11 +23,11 @@
   - [2. 一键启动](#2-一键启动)
   - [3. 语料入库](#3-语料入库)
   - [4. 访问前端](#4-访问前端)
-- [评测](#评测)
-- [运维指标报告](#运维指标报告)
-- [请求日志](#请求日志)
-- [配置说明](#配置说明)
 - [交付文档](#交付文档)
+  - [评测](#评测)
+  - [运维指标报告](#运维指标报告)
+  - [请求日志](#请求日志)
+  - [配置说明](#配置说明)
 
 ---
 
@@ -338,11 +338,21 @@ docker-compose ps
 
 ---
 
-## 评测
+## 交付文档
+
+| 文档 | 说明 |
+|---|---|
+| [成本估算与模型选型](docs/COST_ESTIMATION.md) | DashScope 三模型选型理由与单次/月度成本估算 |
+| [日志字段字典](docs/LOG_FIELD_DICTIONARY.md) | `request_log` 表与指标 CSV 逐字段说明 + 样例 |
+| [评测报告](docs/EVALUATION_REPORT.md) | 22 题测试集、5 项指标、三模式对比实测 |
+| [问题诊断报告](docs/ISSUE_DIAGNOSIS.md) | 5 个已修复问题的证据 + 前后量化对比 |
+| [问题诊断指南](docs/TROUBLESHOOTING.md) | 按症状排查 + 定位命令 |
+
+### 评测
 
 评测用于**对比不同检索模式的效果**（`hybrid` vs `vector` vs `hybrid-rerank`），回答「哪种召回策略更好」这一 case study 的核心问题。评测已内置为前端「测评」页 + 后端 `EvaluationService`（指标算法与 `evaluation/evaluate.py` 一致，已迁移至 Java），不再依赖独立 Python 脚本。
 
-### 一、怎么跑
+#### 一、怎么跑
 
 1. 按「快速开始」启动服务。
 2. 浏览器打开 `http://localhost:3000`，点击右上角「测评」进入测评页。
@@ -350,7 +360,7 @@ docker-compose ps
 
 后端 `POST /api/evaluation/run` 以 SSE 流式返回进度（`start` / `mode_start` / `question_start` / `question_done` / `mode_done` / `done`），前端实时显示完成进度与逐题结果。**测评开始前会自动检查 8 份语料，缺失的先行入库**（`ingest_*` 事件），无需手动上传。
 
-### 二、测试集
+#### 二、测试集
 
 22 道中英双语题（`evaluation-questions.json`），全部对齐到**实际已入库的 8 份语料**，避免「语料无此话题」导致的空召回：
 
@@ -361,7 +371,7 @@ docker-compose ps
 | `comparison`（对比型） | 2 | 多源上下文综合 |
 | `safety_refusal`（拒答型） | 2 | 拒答行为（银行卡/炸弹） |
 
-### 三、怎么打分
+#### 三、怎么打分
 
 后端对每道题调用 `POST /api/chat`，拿到回答与来源后计算 5 项指标：
 
@@ -375,15 +385,13 @@ docker-compose ps
 
 同时记录每题 `latency_ms`，汇总出 avg / p50 / p95 延迟。若未配置 `DASHSCOPE_API_KEY`，语义代理退化为字符 bigram 词法重叠。
 
-### 四、结果与历史
+#### 四、结果与历史
 
 每次评测的完整报告（三模式汇总 + 逐题明细）持久化到 PostgreSQL `evaluation_run` 表。进入测评页自动加载历史列表（时间倒序），顶部下拉可回看任意一次测评的对比表与逐题明细，刷新/重进页面结果不丢失。
 
 实测三模式对比数据见 [docs/EVALUATION_REPORT.md](docs/EVALUATION_REPORT.md)。
 
----
-
-## 运维指标报告
+### 运维指标报告
 
 后端采集每请求指标，通过 CSV 接口导出：
 
@@ -393,9 +401,7 @@ curl -O localhost:8080/api/report/csv
 
 CSV 包含逐请求明细（检索/生成/总延迟、prompt/completion token、缓存命中、拒答、脱敏次数、chunk 数、最高相似度、答案合规分）与汇总行（总请求数、p50/p95 延迟、缓存命中率、拒答率、答案合规率）。
 
----
-
-## 请求日志
+### 请求日志
 
 后端将每次问答请求以「请求」为 entry 持久化到 PostgreSQL（`request_log` 表），字段包括：请求 ID、时间、问题、回答、session、模型、检索模式、命中文档、总/检索/生成延迟、LLM 调用次数、prompt/completion token、缓存命中、拒答及原因、召回 chunk 数、最高相似度、PII 脱敏数、状态（`success` / `refused` / `error`）。
 
@@ -406,9 +412,7 @@ CSV 包含逐请求明细（检索/生成/总延迟、prompt/completion token、
 
 接口：`GET /api/logs?limit=N`（默认 100，上限 1000）、`DELETE /api/logs`。
 
----
-
-## 配置说明
+### 配置说明
 
 检索参数、模型选择、安全阈值、语义缓存开关均支持在运行时通过前端「系统配置」页（`GET/PUT /api/config`）热更新，持久化到 `system_config` 表，无需重启。以下基础设施连接与 API Key 通过环境变量覆盖（见 `application.yml`）：
 
@@ -420,18 +424,6 @@ CSV 包含逐请求明细（检索/生成/总延迟、prompt/completion token、
 | `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | Redis 连接 |
 
 **API Key 初始化优先级**（`dashscope.api-key`）：`system_config` 表（UI 配置） > 环境变量 `DASHSCOPE_API_KEY` > 无。可通过 `PUT /api/config/apikey` 写入（`{"apiKey":"sk-..."}`）或传空值清除（回退环境变量）；`GET /api/config` 仅返回脱敏尾号 `apiKeyMasked`，不回显完整 Key，避免泄露。
-
----
-
-## 交付文档
-
-| 文档 | 说明 |
-|---|---|
-| [成本估算与模型选型](docs/COST_ESTIMATION.md) | DashScope 三模型选型理由与单次/月度成本估算 |
-| [日志字段字典](docs/LOG_FIELD_DICTIONARY.md) | `request_log` 表与指标 CSV 逐字段说明 + 样例 |
-| [评测报告](docs/EVALUATION_REPORT.md) | 22 题测试集、5 项指标、三模式对比实测 |
-| [问题诊断报告](docs/ISSUE_DIAGNOSIS.md) | 5 个已修复问题的证据 + 前后量化对比 |
-| [问题诊断指南](docs/TROUBLESHOOTING.md) | 按症状排查 + 定位命令 |
 
 ---
 
