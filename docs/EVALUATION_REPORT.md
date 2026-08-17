@@ -1,6 +1,6 @@
 # 评测报告
 
-> 实测日期：2026-08-17　·　测试集：`evaluation/questions.json`（22 题，中 18 / 英 4）　·　驱动：`evaluation/run_all.sh`
+> 实测日期：2026-08-17　·　测试集：`evaluation-questions.json`（22 题，中 18 / 英 4）　·　驱动：前端「测评」页 / `POST /api/evaluation/run`（指标算法已迁移至后端 `EvaluationService`）
 > 模型：`qwen-plus` + `text-embedding-v3`（hybrid-rerank 另用 `qwen3-rerank`）
 
 ---
@@ -81,3 +81,13 @@
 4. **单线程冷启动**的 p90/p95 偏保守；5 并发压测下尾部会进一步放大，需结合 §3 的上下文压缩一并治理。
 
 **改进方向**：① 针对 vector / hybrid-rerank 压缩召回上下文以压 p95；② 用 LLM-as-judge 替代语义/规则代理；③ 增加 5 并发压测结果入册；④ 将评测纳入 CI 做回归门槛。
+
+---
+
+## 6. 评测已内置 + 结果持久化
+
+本报告实测数据由早期的离线脚本（`evaluation/run_all.sh`）产生；此后评测已内置为后端 `EvaluationService` + 前端「测评」页，指标算法一致（语义代理 + 规则代理）。
+
+- **一键评测**：前端点击「测评」→ 勾选模式 → 开始，SSE 实时进度。
+- **语料自动入库**：测评前自动检查 8 份语料，缺失的从 `test-docs/` 自动解析/分块/向量化并写入 ES + pgvector。
+- **结果持久化**：每次报告存入 PostgreSQL `evaluation_run` 表，测评页顶部下拉可回看任意历史测评，刷新/重进页面结果不丢失。
