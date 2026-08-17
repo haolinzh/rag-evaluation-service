@@ -152,6 +152,11 @@ export async function updateRetrievalMode(mode: string): Promise<SystemConfig> {
   return data;
 }
 
+export async function updateApiKey(apiKey: string): Promise<SystemConfig> {
+  const { data } = await api.put('/config/apikey', { apiKey });
+  return data;
+}
+
 export async function fetchEvaluationQuestions(): Promise<EvaluationQuestion[]> {
   const { data } = await api.get('/evaluation/questions');
   return data;

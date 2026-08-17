@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Select, InputNumber, Switch, Button, Typography, Space, Card, Alert, message, Row, Col, Spin } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined, SettingOutlined } from '@ant-design/icons';
-import { fetchConfig, updateConfig } from '../api';
+import { Form, Select, InputNumber, Switch, Button, Typography, Space, Card, Alert, message, Row, Col, Spin, Input } from 'antd';
+import { ArrowLeftOutlined, SaveOutlined, SettingOutlined, KeyOutlined } from '@ant-design/icons';
+import { fetchConfig, updateConfig, updateApiKey } from '../api';
 import type { SystemConfig } from '../types';
 
 interface Props {
@@ -31,6 +31,8 @@ const ConfigPage: React.FC<Props> = ({ onBack, onSaved }) => {
   const [form] = Form.useForm<FormValues>();
   const [config, setConfig] = useState<SystemConfig | null>(null);
   const [saving, setSaving] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [savingKey, setSavingKey] = useState(false);
 
   const embeddingValue = Form.useWatch('embedding', form);
 
@@ -103,6 +105,39 @@ const ConfigPage: React.FC<Props> = ({ onBack, onSaved }) => {
     }
   };
 
+  const saveApiKey = async () => {
+    const k = apiKeyInput.trim();
+    if (!k) {
+      message.warning('请输入 API Key');
+      return;
+    }
+    setSavingKey(true);
+    try {
+      const c = await updateApiKey(k);
+      setConfig(c);
+      setApiKeyInput('');
+      message.success('API Key 已保存，即时生效');
+    } catch (e: any) {
+      message.error(e?.response?.data?.error ?? '保存失败');
+    } finally {
+      setSavingKey(false);
+    }
+  };
+
+  const clearApiKey = async () => {
+    setSavingKey(true);
+    try {
+      const c = await updateApiKey('');
+      setConfig(c);
+      setApiKeyInput('');
+      message.success('已清除 API Key');
+    } catch (e: any) {
+      message.error(e?.response?.data?.error ?? '清除失败');
+    } finally {
+      setSavingKey(false);
+    }
+  };
+
   if (!config) {
     return (
       <div style={{ padding: 48, display: 'flex', justifyContent: 'center' }}>
@@ -120,6 +155,29 @@ const ConfigPage: React.FC<Props> = ({ onBack, onSaved }) => {
       </Space>
 
       <Form form={form} layout="vertical" onFinish={onFinish} requiredMark={false}>
+        <Card title={<span><KeyOutlined /> API Key（阿里云百炼）</span>} size="small" style={{ marginBottom: 16 }}>
+          <Typography.Text type="secondary">
+            用于调用 DashScope 大模型 / Embedding。填写后即时生效；仅显示脱敏尾号，不回显完整 Key。
+          </Typography.Text>
+          <Space.Compact style={{ width: '100%', marginTop: 8 }}>
+            <Input.Password
+              placeholder="sk-..."
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              style={{ maxWidth: 420 }}
+            />
+            <Button type="primary" onClick={saveApiKey} loading={savingKey}>保存 Key</Button>
+            <Button onClick={clearApiKey} disabled={!config.apiKeyMasked}>清除</Button>
+          </Space.Compact>
+          <div style={{ marginTop: 8 }}>
+            <Typography.Text type="secondary">
+              {config.apiKeyMasked
+                ? `当前已配置：${config.apiKeyMasked}`
+                : '当前未配置（可在上方填写，或通过环境变量 DASHSCOPE_API_KEY 注入）'}
+            </Typography.Text>
+          </div>
+        </Card>
+
         <Card title="检索参数" size="small" style={{ marginBottom: 16 }}>
           <Row gutter={16}>
             <Col span={8}>

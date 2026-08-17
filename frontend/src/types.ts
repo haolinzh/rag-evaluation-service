@@ -127,6 +127,7 @@ export interface SystemConfig {
   cache: { enabled: boolean; ttlSeconds: number };
   modelOptions: ModelOption[];
   embeddingDimension: number;
+  apiKeyMasked?: string | null;
 }
 
 export interface EvaluationQuestion {

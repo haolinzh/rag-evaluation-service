@@ -29,6 +29,7 @@ public class ConfigController {
     private static final String K_FORBIDDEN = "safety.forbidden-keywords";
     private static final String K_CACHE_ENABLED = "cache.semantic.enabled";
     private static final String K_CACHE_TTL = "cache.semantic.ttl-seconds";
+    private static final String K_API_KEY = "dashscope.api-key";
 
     private static final int EMBEDDING_DIMENSION = 1024;
 
@@ -104,6 +105,17 @@ public class ConfigController {
         return ResponseEntity.ok(buildDto());
     }
 
+    @PutMapping("/apikey")
+    public ResponseEntity<?> updateApiKey(@RequestBody(required = false) Map<String, String> body) {
+        String apiKey = body == null ? null : body.get("apiKey");
+        if (apiKey == null || apiKey.isBlank()) {
+            config.reset(K_API_KEY);
+        } else {
+            config.put(K_API_KEY, apiKey.trim());
+        }
+        return ResponseEntity.ok(buildDto());
+    }
+
     private SystemConfigDto buildDto() {
         return new SystemConfigDto(
             new SystemConfigDto.Retrieval(
@@ -126,7 +138,14 @@ public class ConfigController {
                 config.getBool(K_CACHE_ENABLED, true),
                 config.getInt(K_CACHE_TTL, 3600)),
             MODEL_OPTIONS,
-            EMBEDDING_DIMENSION);
+            EMBEDDING_DIMENSION,
+            maskApiKey(config.get(K_API_KEY, "")));
+    }
+
+    private String maskApiKey(String key) {
+        if (key == null || key.isBlank()) return null;
+        if (key.length() <= 8) return key.substring(0, 1) + "****";
+        return key.substring(0, 3) + "****" + key.substring(key.length() - 4);
     }
 
     private String validate(SystemConfigDto dto) {

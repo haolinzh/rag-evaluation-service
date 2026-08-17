@@ -8,7 +8,8 @@ public record SystemConfigDto(
     Safety safety,
     Cache cache,
     List<ModelOption> modelOptions,
-    int embeddingDimension
+    int embeddingDimension,
+    String apiKeyMasked
 ) {
     public record Retrieval(String mode, int topK, int recallSizeMultiplier, int rrfK,
                             int rerankCandidates, double similarityThreshold) {}
