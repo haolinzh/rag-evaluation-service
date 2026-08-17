@@ -19,7 +19,7 @@ spring:
 
 dashscope:
   api-key: ${DASHSCOPE_API_KEY}
-  chat-model: qwen-plus
+  chat-model: qwen-turbo
   embedding-model: text-embedding-v3
   rerank-model: qwen3-rerank
 

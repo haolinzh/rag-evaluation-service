@@ -126,7 +126,7 @@ public class ConfigController {
                 config.getInt(K_RERANK_CAND, 20),
                 config.getDouble(K_SIM_THRESHOLD, 0.4)),
             new SystemConfigDto.Models(
-                config.get(K_CHAT_MODEL, "qwen-plus"),
+                config.get(K_CHAT_MODEL, "qwen-turbo"),
                 config.get(K_EMB_MODEL, "text-embedding-v3"),
                 config.get(K_RERANK_MODEL, "qwen3-rerank")),
             new SystemConfigDto.Safety(

@@ -38,7 +38,7 @@ public class DashScopeService {
     public record ChatResult(String content, String thinking, int promptTokens, int completionTokens) {}
 
     public String getChatModel() {
-        return config.get("dashscope.chat-model", "qwen-plus");
+        return config.get("dashscope.chat-model", "qwen-turbo");
     }
 
     public ChatResult chat(String systemPrompt, String userMessage) {

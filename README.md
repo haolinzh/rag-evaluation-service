@@ -67,7 +67,7 @@
 | 层 | 技术 |
 |---|---|
 | 后端框架 | Spring Boot 3.4.1 (Java 17) |
-| 大模型 | 阿里云百炼 DashScope：`qwen-plus` (对话) + `text-embedding-v3` (向量) + `qwen3-rerank` (精排)；对话可切换 `deepseek-r1` / `qwen3-235b-a22b-thinking` 深度思考模型 |
+| 大模型 | 阿里云百炼 DashScope：`qwen-turbo` (对话) + `text-embedding-v3` (向量) + `qwen3-rerank` (精排)；对话可切换 `qwen-plus` / `qwen-max` / `deepseek-r1` 等模型 |
 | 关键词检索 | Elasticsearch 8.13.4 |
 | 向量数据库 | PostgreSQL 16 + pgvector (cosine `<=>` 操作符) |
 | 缓存 | Redis 7 |
@@ -100,7 +100,7 @@
                          │       └─ hybrid-rerank: RRF ──▶ Rerank   │
                          │  3. SafetyService.evaluate()  允许/拒答  │
                          │  4. SemanticCacheService.lookup()        │
-                         │  5. DashScope (qwen-plus) 生成           │
+                         │  5. DashScope (qwen-turbo) 生成          │
                          │  6. PIIRedactionService.redact()         │
                          │  7. 保存历史 + 采集指标 + 写请求日志     │
                          └───────┬──────────┬──────────┬───────────┘
