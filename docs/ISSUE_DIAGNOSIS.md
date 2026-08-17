@@ -23,18 +23,20 @@
 
 ## 问题 2：越界（out-of-scope）拒答未实现，越界问题生成短答案
 
-**证据**（hybrid 模式评测）：
+**证据**（hybrid 模式评测，早期 v1 测试集）：
 
-| 问题 | 修复前 | 修复后 |
+> 注：该问题在**测试集与语料重新对齐之前**（v1 测试集）诊断，当时含 `Spring AI 框架提供了哪些主要功能？`、`What is prompt injection...` 等语料中不存在的话题。重新对齐后这些越界题已从测试集移除（见 [`EVALUATION_REPORT.md`](./EVALUATION_REPORT.md) §4 根因①），但越界闸门仍保留在 `SafetyService` 中，用于真实场景下用户提出知识库外问题的兜底拒答。
+
+| 问题（v1 测试集） | 修复前 | 修复后 |
 |---|---|---|
-| `Spring AI框架提供了哪些主要功能？` (q003) | `refusal=false`, AC=0.3（生成了非拒答短答案） | `refusal=true` (REFUSE_OUT_OF_SCOPE), AC=1.0 |
-| `What is prompt injection...` (q008) | AC=0.3 | REFUSE_OUT_OF_SCOPE, AC=1.0 |
+| `Spring AI框架提供了哪些主要功能？` | `refusal=false`, AC=0.3（生成了非拒答短答案） | `refusal=true` (REFUSE_OUT_OF_SCOPE), AC=1.0 |
+| `What is prompt injection...` | AC=0.3 | REFUSE_OUT_OF_SCOPE, AC=1.0 |
 
 **根因**：`SafetyService.Decision.REFUSE_OUT_OF_SCOPE` 已定义但 `evaluate()` 从不返回该分支，且 `enable-out-of-scope-check=false`。越界问题越过置信度闸门后被当作可答，生成了既无来源又无引导的短答案。
 
 **修复**：实现第三级闸门——当 `min-similarity ≤ maxScore < out-of-scope-threshold`（0.4 ≤ s < 0.55）时返回 `REFUSE_OUT_OF_SCOPE`，并默认 `enable-out-of-scope-check=true`。
 
-**前后对比**：整体 **Answer Compliance 0.532 → 0.814（+53%）**，越界问题由短答案（AC=0.3）变为带引导拒答（AC=1.0）。
+**前后对比**：整体 **Answer Compliance 0.532 → 0.814（+53%）**，越界问题由短答案（AC=0.3）变为带引导拒答（AC=1.0）。当前对齐后的测试集全部命中语料、无越界题，闸门作为真实场景的兜底保留。
 
 ---
 
