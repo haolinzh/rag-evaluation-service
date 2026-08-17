@@ -33,13 +33,22 @@
 
 ![RAG 知识库问答系统主界面](docs/screenshot.jpg)
 
+**主界面**：三栏布局——左侧文档上传与检索模式切换，中间多轮对话（含来源 chunk 标签、思考过程折叠），右侧运维指标与实时日志。
+
 ![一键测评（三模式对比）](docs/screenshot-evaluation.jpg)
+
+**一键测评**：跑 22 道中英测试题，对比 `vector` / `hybrid` / `hybrid-rerank` 三种模式的 5 项质量指标，SSE 实时进度。
 
 ![文档管理页](docs/screenshot-documents.jpg)
 
+**文档管理**：查看已入库文档的名称、分块方式与时间，支持删除，检索语料由此管理。
 ![日志详情](docs/screenshot-log-detail.jpg)
 
+**日志详情**：展开单次请求查看完整问题、生成回答、命中来源与 token/耗时明细，用于定位检索或生成问题。
+
 ![系统配置页](docs/screenshot-config.jpg)
+
+**系统配置**：检索参数、对话/向量/精排模型、安全阈值与语义缓存的运行时热更新，持久化到数据库，无需重启。
 
 ---
 
