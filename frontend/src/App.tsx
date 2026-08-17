@@ -10,7 +10,7 @@ import DocumentManagement from './components/DocumentManagement';
 import LogManagement from './components/LogManagement';
 import ConfigPage from './components/ConfigPage';
 import type { DocumentMeta } from './types';
-import { listDocuments } from './api';
+import { listDocuments, fetchConfig, updateRetrievalMode } from './api';
 
 const { Header, Content } = Layout;
 
@@ -30,6 +30,17 @@ const App: React.FC = () => {
 
   useEffect(() => { refreshDocuments(); }, []);
 
+  useEffect(() => {
+    fetchConfig()
+      .then((c) => setRetrievalMode(c.retrieval.mode))
+      .catch(() => {});
+  }, []);
+
+  const handleModeChange = (mode: string) => {
+    setRetrievalMode(mode);
+    updateRetrievalMode(mode).catch(() => {});
+  };
+
   if (view === 'documents') {
     return <DocumentManagement onBack={() => setView('main')} />;
   }
@@ -39,14 +50,14 @@ const App: React.FC = () => {
   }
 
   if (view === 'config') {
-    return <ConfigPage onBack={() => setView('main')} />;
+    return <ConfigPage onBack={() => setView('main')} onSaved={setRetrievalMode} />;
   }
 
   const documentPanel = (
     <DocumentPanel
       documents={documents}
       retrievalMode={retrievalMode}
-      onModeChange={setRetrievalMode}
+      onModeChange={handleModeChange}
       onRefresh={refreshDocuments}
       onOpenManagement={() => setView('documents')}
     />

@@ -8,7 +8,9 @@ import com.rag.eval.repository.VectorChunkRepo;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class DocumentService {
@@ -19,17 +21,22 @@ public class DocumentService {
     private final VectorChunkRepo vectorChunkRepo;
     private final ElasticsearchService esService;
     private final SemanticCacheService cacheService;
+    private final FileStorageService fileStorage;
 
     public DocumentService(DocumentParserService parser, IndexBuilder indexBuilder,
                            DocumentMetaRepo docRepo, VectorChunkRepo vectorChunkRepo,
-                           ElasticsearchService esService, SemanticCacheService cacheService) {
+                           ElasticsearchService esService, SemanticCacheService cacheService,
+                           FileStorageService fileStorage) {
         this.parser = parser;
         this.indexBuilder = indexBuilder;
         this.docRepo = docRepo;
         this.vectorChunkRepo = vectorChunkRepo;
         this.esService = esService;
         this.cacheService = cacheService;
+        this.fileStorage = fileStorage;
     }
+
+    public record OriginalFile(String fileName, byte[] bytes) {}
 
     public DocumentMeta ingest(MultipartFile file) throws Exception {
         return ingest(file, ChunkConfig.defaults());
@@ -37,19 +44,28 @@ public class DocumentService {
 
     public DocumentMeta ingest(MultipartFile file, ChunkConfig config) throws Exception {
         String fileName = file.getOriginalFilename();
+        byte[] bytes = file.getBytes();
         // Parse first: a corrupt upload fails before the existing version is removed.
-        DocumentParserService.ParsedDocument parsed = parser.parse(file.getInputStream(), fileName);
+        DocumentParserService.ParsedDocument parsed = parser.parse(new ByteArrayInputStream(bytes), fileName);
         List<ChunkData> chunks = parser.splitAndEnrich(parsed.text(), fileName, parsed.sourceType(), config);
         for (int i = 0; i < chunks.size(); i++) {
             chunks.get(i).setChunkIndex(i);
         }
 
-        // Same-name re-upload replaces the previous version.
-        docRepo.findByFileName(fileName).ifPresent(this::deleteExisting);
+        // Same-name re-upload replaces the previous version, keeping the original
+        // row (and its created_at) while refreshing updated_at.
+        DocumentMeta meta = docRepo.findByFileName(fileName).orElse(null);
+        if (meta != null) {
+            deleteIndexedData(meta);
+        } else {
+            meta = new DocumentMeta();
+        }
+
+        // Persist the original file before indexing.
+        String storedFileName = fileStorage.store(fileName, bytes);
 
         indexBuilder.buildIndex(chunks);
 
-        DocumentMeta meta = new DocumentMeta();
         meta.setFileName(fileName);
         meta.setFileSize(file.getSize());
         meta.setChunkCount(chunks.size());
@@ -57,6 +73,7 @@ public class DocumentService {
         meta.setChunkSize(config.chunkSize());
         meta.setOverlap(config.overlap());
         meta.setDelimiter(config.isDelimiterMode() ? config.delimiter() : null);
+        meta.setStoredFileName(storedFileName);
         return docRepo.save(meta);
     }
 
@@ -71,13 +88,28 @@ public class DocumentService {
     }
 
     public void deleteById(Long id) {
-        docRepo.findById(id).ifPresent(this::deleteExisting);
+        docRepo.findById(id).ifPresent(meta -> {
+            deleteIndexedData(meta);
+            docRepo.delete(meta);
+        });
     }
 
-    private void deleteExisting(DocumentMeta meta) {
+    public Optional<OriginalFile> getOriginal(Long id) {
+        return docRepo.findById(id).flatMap(m -> {
+            try {
+                byte[] bytes = fileStorage.load(m.getStoredFileName());
+                return bytes == null ? Optional.empty() : Optional.of(new OriginalFile(m.getFileName(), bytes));
+            } catch (Exception e) {
+                System.err.println("Failed to load original file: " + e.getMessage());
+                return Optional.empty();
+            }
+        });
+    }
+
+    private void deleteIndexedData(DocumentMeta meta) {
         vectorChunkRepo.deleteByFileName(meta.getFileName());
         esService.deleteByFileName(meta.getFileName());
-        docRepo.delete(meta);
+        fileStorage.delete(meta.getStoredFileName());
         cacheService.clear();
     }
 }

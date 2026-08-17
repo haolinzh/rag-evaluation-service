@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Upload, Button, List, Popconfirm, Select, Space, Typography, message, Tag, Progress, Input, InputNumber, Tooltip } from 'antd';
-import { DeleteOutlined, ReloadOutlined, InboxOutlined, FolderOpenOutlined } from '@ant-design/icons';
+import { Upload, Button, List, Popconfirm, Select, Space, Typography, message, Tag, Progress, Input, InputNumber, Tooltip, Modal } from 'antd';
+import { DeleteOutlined, ReloadOutlined, InboxOutlined, FolderOpenOutlined, DownloadOutlined } from '@ant-design/icons';
 import type { DocumentMeta } from '../types';
-import { uploadDocument, deleteDocument } from '../api';
+import { uploadDocument, deleteDocument, downloadDocument } from '../api';
 
 const { Dragger } = Upload;
 const { Text } = Typography;
@@ -25,7 +25,7 @@ const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange
   const [delimiter, setDelimiter] = useState('');
   const [overlap, setOverlap] = useState(50);
 
-  const handleUpload = async (file: File) => {
+  const doUpload = async (file: File) => {
     setUploading(true);
     setProgress(0);
     try {
@@ -38,6 +38,21 @@ const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange
     } finally {
       setUploading(false);
       setProgress(0);
+    }
+  };
+
+  const handleUpload = (file: File) => {
+    if (documents.some(d => d.fileName === file.name)) {
+      Modal.confirm({
+        title: '同名文件已存在',
+        content: `「${file.name}」已存在，覆盖后将替换原文件及其分块，且无法恢复。是否覆盖？`,
+        okText: '覆盖',
+        okButtonProps: { danger: true },
+        cancelText: '取消',
+        onOk: () => doUpload(file),
+      });
+    } else {
+      doUpload(file);
     }
     return false; // prevent default upload
   };
@@ -81,18 +96,19 @@ const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange
           ]} />
       </div>
 
-      <div style={{ marginBottom: 10 }}>
-        <div style={labelStyle}>{splitMode === 'size' ? 'Chunk 大小（字符）' : '分隔符'}</div>
-        {splitMode === 'size' ? (
-          <InputNumber min={50} max={5000} value={chunkSize} onChange={v => setChunkSize(v ?? 500)} style={{ width: '100%' }} />
-        ) : (
-          <Input value={delimiter} onChange={e => setDelimiter(e.target.value)} placeholder="如 ## 或 ###" />
-        )}
-      </div>
-
-      <div style={{ marginBottom: 12 }}>
-        <div style={labelStyle}>Overlap（字符）</div>
-        <InputNumber min={0} max={500} value={overlap} onChange={v => setOverlap(v ?? 50)} disabled={splitMode === 'delimiter'} style={{ width: '100%' }} />
+      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={labelStyle}>{splitMode === 'size' ? 'Chunk 大小（字符）' : '分隔符'}</div>
+          {splitMode === 'size' ? (
+            <InputNumber min={50} max={5000} value={chunkSize} onChange={v => setChunkSize(v ?? 500)} style={{ width: '100%' }} />
+          ) : (
+            <Input value={delimiter} onChange={e => setDelimiter(e.target.value)} placeholder="如 ## 或 ###" />
+          )}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={labelStyle}>Overlap（字符）</div>
+          <InputNumber min={0} max={500} value={overlap} onChange={v => setOverlap(v ?? 50)} disabled={splitMode === 'delimiter'} style={{ width: '100%' }} />
+        </div>
       </div>
 
       <Dragger
@@ -131,6 +147,9 @@ const DocumentPanel: React.FC<Props> = ({ documents, retrievalMode, onModeChange
           <List.Item
             style={{ padding: '8px 4px' }}
             actions={[
+              <Tooltip title="下载原文件" key="dl">
+                <Button size="small" type="text" icon={<DownloadOutlined />} onClick={() => downloadDocument(doc.id)} />
+              </Tooltip>,
               <Popconfirm title="确认删除？" onConfirm={() => handleDelete(doc.id)} key="del">
                 <Button size="small" danger type="text" icon={<DeleteOutlined />}>删除</Button>
               </Popconfirm>

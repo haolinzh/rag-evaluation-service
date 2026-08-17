@@ -43,6 +43,9 @@ public class DocumentMeta {
     @Column(name = "delimiter")
     private String delimiter;
 
+    @Column(name = "stored_file_name")
+    private String storedFileName;
+
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();

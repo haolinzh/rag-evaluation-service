@@ -57,8 +57,12 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      UPLOAD_DIR: /data/uploads
+      JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Shanghai
     ports:
       - "8080:8080"
+    volumes:
+      - uploads:/data/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -78,3 +82,4 @@ volumes:
   pgdata:
   esdata:
   redisdata:
+  uploads:

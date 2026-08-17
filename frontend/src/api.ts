@@ -33,6 +33,15 @@ export async function deleteDocument(id: number): Promise<void> {
   await api.delete(`/documents/${id}`);
 }
 
+export function downloadDocument(id: number): void {
+  const a = document.createElement('a');
+  a.href = `/api/documents/${id}/download`;
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 export async function getDocumentChunks(id: number): Promise<ChunkPreview[]> {
   const { data } = await api.get(`/documents/${id}/chunks`);
   return data;
@@ -135,5 +144,10 @@ export async function fetchConfig(): Promise<SystemConfig> {
 
 export async function updateConfig(config: SystemConfig): Promise<SystemConfig> {
   const { data } = await api.put('/config', config);
+  return data;
+}
+
+export async function updateRetrievalMode(mode: string): Promise<SystemConfig> {
+  const { data } = await api.put('/config/mode', { mode });
   return data;
 }

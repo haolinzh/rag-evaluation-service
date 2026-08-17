@@ -187,7 +187,11 @@ public class DocumentParserService {
 
             chunks.add(text.substring(start, end).trim());
             if (end >= text.length()) break;
-            start = end - overlap;
+            int next = end - overlap;
+            // Guarantee forward progress even when overlap is oversized relative to
+            // the (possibly boundary-shrunk) chunk end; otherwise this loops forever.
+            if (next <= start) next = start + 1;
+            start = next;
         }
         return chunks;
     }

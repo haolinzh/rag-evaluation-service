@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Drawer, Tag, Typography, Space, Empty, message } from 'antd';
-import { ArrowLeftOutlined, EyeOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons';
 import type { DocumentMeta, ChunkPreview } from '../types';
-import { listDocuments, getDocumentChunks } from '../api';
+import { listDocuments, getDocumentChunks, downloadDocument } from '../api';
 
 interface Props {
   onBack: () => void;
@@ -70,7 +70,10 @@ const DocumentManagement: React.FC<Props> = ({ onBack }) => {
     {
       title: '操作', key: 'action',
       render: (_: unknown, r: DocumentMeta) => (
-        <Button size="small" icon={<EyeOutlined />} onClick={() => openPreview(r)}>预览</Button>
+        <Space size={4}>
+          <Button size="small" icon={<EyeOutlined />} onClick={() => openPreview(r)}>预览</Button>
+          <Button size="small" icon={<DownloadOutlined />} onClick={() => downloadDocument(r.id)}>下载</Button>
+        </Space>
       ),
     },
   ];

@@ -6,6 +6,7 @@ import type { SystemConfig } from '../types';
 
 interface Props {
   onBack: () => void;
+  onSaved: (mode: string) => void;
 }
 
 interface FormValues {
@@ -26,7 +27,7 @@ interface FormValues {
   ttlSeconds: number;
 }
 
-const ConfigPage: React.FC<Props> = ({ onBack }) => {
+const ConfigPage: React.FC<Props> = ({ onBack, onSaved }) => {
   const [form] = Form.useForm<FormValues>();
   const [config, setConfig] = useState<SystemConfig | null>(null);
   const [saving, setSaving] = useState(false);
@@ -93,6 +94,7 @@ const ConfigPage: React.FC<Props> = ({ onBack }) => {
     setSaving(true);
     try {
       await updateConfig(next);
+      onSaved(v.mode);
       message.success('配置已保存，即时生效');
     } catch (e: any) {
       message.error(e?.response?.data?.error ?? '保存失败');

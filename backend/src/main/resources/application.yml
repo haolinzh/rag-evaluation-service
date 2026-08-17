@@ -71,6 +71,9 @@ ocr:
   dpi: 300
   timeout-seconds: 120
 
+storage:
+  upload-dir: ${UPLOAD_DIR:/data/uploads}
+
 logging:
   level:
     com.rag.eval: DEBUG

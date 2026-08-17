@@ -94,6 +94,16 @@ public class ConfigController {
         return ResponseEntity.ok(buildDto());
     }
 
+    @PutMapping("/mode")
+    public ResponseEntity<?> updateMode(@RequestBody Map<String, String> body) {
+        String mode = body == null ? null : body.get("mode");
+        if (mode == null || !MODES.contains(mode)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "非法检索模式: " + mode));
+        }
+        config.put(K_MODE, mode);
+        return ResponseEntity.ok(buildDto());
+    }
+
     private SystemConfigDto buildDto() {
         return new SystemConfigDto(
             new SystemConfigDto.Retrieval(

@@ -329,6 +329,7 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
                   background: msg.role === 'user' ? '#1677ff' : '#f0f0f0',
                   color: msg.role === 'user' ? '#fff' : '#333',
                   wordBreak: 'break-word',
+                  fontSize: 15,
                 }}>
                   {msg.role === 'assistant' ? (
                     <div className="markdown-body">
@@ -376,14 +377,15 @@ const ChatPanel: React.FC<Props> = ({ retrievalMode }) => {
           <div ref={messagesEndRef} />
         </div>
 
-        <div style={{ display: 'flex', gap: 8, paddingRight: 12 }}>
+        <div style={{ display: 'flex', gap: 8, paddingRight: 12, paddingBottom: 12 }}>
           <TextArea
             value={input}
             onChange={e => setInput(e.target.value)}
             onPressEnter={e => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder="输入问题，Enter 发送，Shift+Enter 换行"
-            rows={2}
+            rows={3}
             disabled={loading}
+            style={{ fontSize: 15 }}
           />
           <Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={loading}>
             发送
