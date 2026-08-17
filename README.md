@@ -180,7 +180,11 @@ rag-evaluation-service/
 - Docker Desktop（或 Docker Engine + Compose）
 - 一个百炼 DashScope API Key（[申请地址](https://bailian.console.aliyun.com/)）
 
-### 1. 配置 API Key
+### 1. 初始化 API Key
+
+支持两种方式，二选一：
+
+**方式 A：环境变量（本地部署）**
 
 ```bash
 cp .env.example .env
@@ -188,6 +192,13 @@ cp .env.example .env
 ```
 
 > `.env` 已被 `.gitignore` 忽略，不会提交到仓库。
+
+**方式 B：系统配置页（面向「分发出去的使用者」，免改文件）**
+
+启动后浏览器打开 `http://localhost:3000` → 「系统配置」→「API Key」卡片，粘贴 Key 点「保存 Key」即时生效；点「清除」可回退到环境变量。
+
+- 两种方式均持久化；**UI 配置写入 `system_config` 表（`dashscope.api-key`），优先级高于环境变量**，清除后回退到 `.env` 的 `DASHSCOPE_API_KEY`。
+- 出于安全，接口只回显脱敏尾号（如 `sk-****550e`），永不回显完整 Key。
 
 ### 2. 一键启动
 
@@ -237,6 +248,7 @@ docker-compose ps
 | `GET` | `/api/config` | 读取运行时配置（检索/模型/安全/缓存） |
 | `PUT` | `/api/config` | 更新运行时配置，热更新无需重启 |
 | `PUT` | `/api/config/mode` | 快速切换检索模式 |
+| `PUT` | `/api/config/apikey` | 设置/清除 API Key（`{"apiKey":"sk-..."}`，空值清除并回退环境变量） |
 | `GET` | `/api/evaluation/questions` | 读取评测测试集（22 题） |
 | `POST` | `/api/evaluation/run` | 一键评测（SSE，实时进度 + 逐题结果 + 指标汇总） |
 | `GET` | `/api/evaluation/history` | 历史测评列表（按时间倒序） |
@@ -396,10 +408,12 @@ CSV 包含逐请求明细（检索/生成/总延迟、prompt/completion token、
 
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
-| `DASHSCOPE_API_KEY` | — | 百炼 API Key（必填） |
+| `DASHSCOPE_API_KEY` | — | 百炼 API Key（必填，也可在「系统配置」页 UI 配置） |
 | `DB_HOST` / `DB_USER` / `DB_PASSWORD` | `localhost` / `rag` / `rag123` | PostgreSQL 连接 |
 | `ES_HOST` / `ES_PORT` | `localhost` / `9200` | Elasticsearch 连接 |
 | `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | Redis 连接 |
+
+**API Key 初始化优先级**（`dashscope.api-key`）：`system_config` 表（UI 配置） > 环境变量 `DASHSCOPE_API_KEY` > 无。可通过 `PUT /api/config/apikey` 写入（`{"apiKey":"sk-..."}`）或传空值清除（回退环境变量）；`GET /api/config` 仅返回脱敏尾号 `apiKeyMasked`，不回显完整 Key，避免泄露。
 
 ---
 
