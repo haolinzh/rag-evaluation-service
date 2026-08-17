@@ -1,22 +1,7 @@
-# RAG Evaluation Service
-
-一个面向内部**中英双语知识库**的多轮 RAG 问答 + 生成式服务。支持**关键词检索 (Elasticsearch)** 与**向量检索 (pgvector)** 的混合召回，通过 **RRF (Reciprocal Rank Fusion)** 融合排序，并可选用 DashScope `qwen3-rerank` 精排；内置安全拒答、PII 脱敏、语义缓存、请求日志、运维指标上报与自动化评测，是一套完整的 RAG 工程化 case study。
-
-> 除大模型/Embedding 走阿里云百炼 (DashScope) Open API 外，其余全部本地部署。
-
----
-
 ## 目录
 
 - [界面预览](#界面预览)
 - [核心特性](#核心特性)
-- [技术设计](#技术设计)
-  - [技术栈](#技术栈)
-  - [架构](#架构)
-  - [检索模式与 RRF](#检索模式与-rrf)
-  - [PDF Chunk 策略](#pdf-chunk-策略)
-  - [项目结构](#项目结构)
-  - [API 接口](#api-接口)
 - [快速开始](#快速开始)
   - [0. 前置条件](#0-前置条件)
   - [1. 配置 API Key](#1-配置-api-key)
@@ -28,6 +13,13 @@
   - [运维指标报告](#运维指标报告)
   - [请求日志](#请求日志)
   - [配置说明](#配置说明)
+- [技术设计](#技术设计)
+  - [技术栈](#技术栈)
+  - [架构](#架构)
+  - [项目结构](#项目结构)
+  - [API 接口](#api-接口)
+  - [检索模式与 RRF](#检索模式与-rrf)
+  - [PDF Chunk 策略](#pdf-chunk-策略)
 
 ---
 
@@ -73,213 +65,6 @@
 | **评测结果持久化** | 每次评测报告持久化到 PostgreSQL（`evaluation_run` 表），进入测评页可回看任意历史测评 |
 | **语料自动入库** | 测评开始前自动检查 8 份 case study 语料，缺失的自动解析/分块/向量化并写入 ES + pgvector，无需手动上传 |
 | **运行时配置** | 检索参数、模型选择、安全阈值、语义缓存可通过「系统配置」页热更新，持久化到 `system_config` 表，无需重启 |
-
----
-
-## 技术设计
-
-### 技术栈
-
-| 层 | 技术 |
-|---|---|
-| 后端框架 | Spring Boot 3.4.1 (Java 17) |
-| 大模型 | 阿里云百炼 DashScope：`qwen-turbo` (对话) + `text-embedding-v3` (向量) + `qwen3-rerank` (精排)；对话可切换 `qwen-plus` / `qwen-max` / `deepseek-r1` 等模型 |
-| 关键词检索 | Elasticsearch 8.13.4 |
-| 向量数据库 | PostgreSQL 16 + pgvector (cosine `<=>` 操作符) |
-| 缓存 | Redis 7 |
-| 文档解析 | Apache Tika 3.1.0 (PDF/DOCX/TXT，含 OCR 扫描件) |
-| 前端 | React 18 + TypeScript + Vite + Ant Design 5 + react-resizable-panels（可拖动分栏） |
-| 评测 | 后端 Java（`EvaluationService`，语义代理 + 规则代理，SSE 流式，结果持久化） |
-
-### 架构
-
-```
-                         ┌─────────────────────────────────────────┐
-                         │            Frontend (React + AntD)      │
-                         │  文档上传 │ 多轮对话 │ 运维指标面板      │
-                         └──────────────────────┬──────────────────┘
-                                                │ POST /api/chat
-                                                ▼
-                         ┌─────────────────────────────────────────┐
-                         │            ChatController                │
-                         └──────────────────────┬──────────────────┘
-                                                ▼
-                         ┌─────────────────────────────────────────┐
-                         │              ChatService                 │
-                         │                                         │
-                         │  1. 加载历史 (PostgreSQL, 最近 N 轮)     │
-                         │  2. RetrievalService.retrieve(query)     │
-                         │       ├─ vector:        VectorSearch     │
-                         │       ├─ hybrid:        ES+Vector ──▶ RRF│
-                         │       └─ hybrid-rerank: RRF ──▶ Rerank   │
-                         │  3. SafetyService.evaluate()  允许/拒答  │
-                         │  4. SemanticCacheService.lookup()        │
-                         │  5. DashScope (qwen-turbo) 生成          │
-                         │  6. PIIRedactionService.redact()         │
-                         │  7. 保存历史 + 采集指标 + 写请求日志     │
-                         └───────┬──────────┬──────────┬───────────┘
-                                 │          │          │
-                        ┌────────▼───┐ ┌────▼─────┐ ┌──▼────────┐
-                        │ PostgreSQL │ │Elasticse.│ │   Redis   │
-                        │  pgvector  │ │  keyword │ │sem. cache │
-                        └────────────┘ └──────────┘ └───────────┘
-
-         入库流程: 前端「文档上传」→ Tika 解析 → 分块 → DashScope embedding
-                     → ES 索引 + pgvector 向量插入
-
-         评测流程: 前端「测评」→ POST /api/evaluation/run (SSE)
-                     → 语料自动入库检查 → 逐题调用 ChatService → 指标打分
-                     → 结果持久化到 evaluation_run 表
-```
-
-**RRF 融合公式：**
-
-```
-RRF_score(d) = Σ 1 / (k + rank_i(d))
-
-其中 k = 60 (默认)，rank_i(d) 为文档 d 在第 i 个结果列表中的 1-based 排名。
-```
-
-同时出现在 ES 与向量结果前列的 chunk 得分自然放大；只出现在单一列表的 chunk 仍会保留贡献。确定性、零额外 API 成本、零额外延迟。
-
-### 检索模式与 RRF
-
-三种模式，可在前端「检索模式」下拉中切换（也支持请求体 `mode` 字段指定）：
-
-| 模式 | 行为 |
-|---|---|
-| `vector` | 仅 pgvector 向量语义检索 |
-| `hybrid` | ES 关键词 + pgvector 向量并行召回 → RRF 融合（无重排） |
-| `hybrid-rerank` | ES + 向量 → RRF 融合出候选集 → DashScope `qwen3-rerank` 精排取 topK |
-
-关键参数（可在前端「系统配置」页热更新）：
-
-```yaml
-retrieval:
-  mode: hybrid              # "vector" | "hybrid" | "hybrid-rerank"
-  top-k: 5
-  rrf-k: 60
-  recall-size-multiplier: 3      # 每路召回 = topK * 3
-  rerank-candidates: 20          # hybrid-rerank 时 RRF 先保留的候选数
-  similarity-threshold: 0.4
-```
-
-### PDF Chunk 策略
-
-针对 case study 的三种语料类型分别处理：
-
-| 类型 | 处理方式 |
-|---|---|
-| **数字原生 PDF/DOCX** | Tika 提取文本 → 章节检测（`^第[一二三四五六七八九十百]+章`）→ 按 500 字符分块、50 字符重叠，携带 `{chapter, section, chunk_index}` 元数据 |
-| **扫描版 PDF** | Tika 内置 OCR 提取 → 按页边界切分（无结构化标题）→ 更大分块补偿 OCR 噪音，标记 `source_type="scanned"` |
-| **双语混合文档** | 不做翻译，保留原文，靠 `text-embedding-v3` 多语言向量天然跨语言检索 |
-
-chunk 元数据（同时写入 ES `_source` 与 pgvector `vector_chunks` 表）：
-
-```json
-{
-  "chunk_id": "uuid",
-  "file_name": "compliance-guide-v3.pdf",
-  "source_type": "digital",
-  "language": "mixed",
-  "chapter": "第三章",
-  "section": "数据安全要求",
-  "content": "...",
-  "chunk_index": 12,
-  "token_count": 480
-}
-```
-
-分块参数（切分方式 `size`/`delimiter`、chunk 大小、overlap、分隔符）支持在上传时通过接口或前端配置，`DocumentMeta` 持久化记录每次入库的参数；文档管理页可查看每个文档的 chunk 预览（`GET /api/documents/{id}/chunks`）。
-
-### 项目结构
-
-```
-rag-evaluation-service/
-├── docker-compose.yml              # PostgreSQL(pgvector) + ES + Redis + 后端 + 前端
-├── backend/
-│   ├── pom.xml
-│   └── src/
-│       ├── main/java/com/rag/eval/
-│       │   ├── RAGApplication.java
-│       │   ├── config/             # WebConfig / ES / Redis / pgvector
-│       │   ├── controller/         # Chat / Document / Report / Log / Cache / Config / Evaluation
-│       │   ├── model/              # DTO + JPA 实体（含 RequestLog）
-│       │   ├── repository/         # JPA + JDBC(pgvector 原生 SQL)
-│       │   ├── service/            # 检索/重排/安全/脱敏/缓存/指标/报告/评测/语料
-│       │   └── pipeline/           # 入库管道（解析/分块/索引）
-│       ├── main/resources/
-│       │   ├── application.yml
-│       │   ├── application-vector.yml
-│       │   ├── application-hybrid.yml
-│       │   └── init-db.sql         # pgvector 扩展 + 表结构
-│       └── test/java/.../          # RRF / Safety / PII 单测 + 集成
-├── frontend/                       # React 18 + TS + Vite + AntD
-│   └── src/
-│       ├── App.tsx                 # 三栏可拖动 + 响应式布局
-│       └── components/
-│           ├── DocumentPanel.tsx    # 上传（chunk 配置）+ 检索模式切换
-│           ├── DocumentManagement.tsx # 文档管理页（chunk 预览）
-│           ├── ChatPanel.tsx        # 多轮对话 + 来源展示
-│           ├── ConfigPage.tsx       # 系统配置页（检索/模型/安全/缓存热更新）
-│           ├── MetricsPanel.tsx     # 指标面板 + CSV 下载 + 清缓存
-│           ├── LogPanel.tsx         # 主页日志（自动刷新）
-│           ├── LogManagement.tsx    # 日志管理页（全量明细）
-│           └── EvaluationPage.tsx   # 一键测评页（三模式对比 + 历史回看）
-├── test-docs/                      # 8 份 case study 语料（测评前自动入库的源目录）
-└── evaluation/                     # 历史离线评测脚本（已被内置 UI 评测取代）
-    ├── questions.json              # 22 道中英测试题
-    ├── evaluate.py                 # 评测脚本（5 项质量指标）
-    └── run_all.sh                  # 一键评测驱动
-```
-
-### API 接口
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `POST` | `/api/chat` | 多轮问答，请求体 `{"question": "...", "sessionId": "...", "mode": "hybrid"}` |
-| `POST` | `/api/chat/stream` | 流式问答（SSE，逐 token 返回 `thinking`/`content`/`done` 事件） |
-| `GET` | `/api/chat/history/{sessionId}` | 查询会话历史 |
-| `DELETE` | `/api/chat/history/{sessionId}` | 删除会话历史 |
-| `POST` | `/api/documents/upload` | 上传文档 (multipart，可带 `splitMode`/`chunkSize`/`overlap`/`delimiter` 参数) |
-| `GET` | `/api/documents` | 文档列表 |
-| `DELETE` | `/api/documents/{id}` | 删除文档 |
-| `GET` | `/api/documents/{id}/chunks` | 文档 chunk 预览 |
-| `GET` | `/api/logs?limit=100` | 请求日志列表（按 id 倒序） |
-| `DELETE` | `/api/logs` | 清空请求日志 |
-| `POST` | `/api/cache/clear` | 清空语义缓存 |
-| `GET` | `/api/report/csv` | 下载运维指标 CSV |
-| `GET` | `/api/report/summary` | 运维指标汇总（JSON，主页指标面板轮询） |
-| `GET` | `/api/config` | 读取运行时配置（检索/模型/安全/缓存） |
-| `PUT` | `/api/config` | 更新运行时配置，热更新无需重启 |
-| `PUT` | `/api/config/mode` | 快速切换检索模式 |
-| `PUT` | `/api/config/apikey` | 设置/清除 API Key（`{"apiKey":"sk-..."}`，空值清除并回退环境变量） |
-| `GET` | `/api/evaluation/questions` | 读取评测测试集（22 题） |
-| `POST` | `/api/evaluation/run` | 一键评测（SSE，实时进度 + 逐题结果 + 指标汇总） |
-| `GET` | `/api/evaluation/history` | 历史测评列表（按时间倒序） |
-| `GET` | `/api/evaluation/history/{id}` | 某次测评的完整报告 |
-
-**问答示例：**
-
-```bash
-curl -X POST localhost:8080/api/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"question":"什么是 RAG？","sessionId":"test-1","mode":"hybrid"}'
-```
-
-响应示例：
-
-```json
-{
-  "content": "RAG 即检索增强生成……",
-  "retrievalMode": "hybrid",
-  "sources": [
-    { "fileName": "intro.pdf", "snippet": "...", "score": 0.0325, "sourceType": "digital" }
-  ],
-  "refusal": false,
-  "refusalReason": null
-}
-```
 
 ---
 
@@ -424,6 +209,213 @@ CSV 包含逐请求明细（检索/生成/总延迟、prompt/completion token、
 | `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | Redis 连接 |
 
 **API Key 初始化优先级**（`dashscope.api-key`）：`system_config` 表（UI 配置） > 环境变量 `DASHSCOPE_API_KEY` > 无。可通过 `PUT /api/config/apikey` 写入（`{"apiKey":"sk-..."}`）或传空值清除（回退环境变量）；`GET /api/config` 仅返回脱敏尾号 `apiKeyMasked`，不回显完整 Key，避免泄露。
+
+---
+
+## 技术设计
+
+### 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 后端框架 | Spring Boot 3.4.1 (Java 17) |
+| 大模型 | 阿里云百炼 DashScope：`qwen-turbo` (对话) + `text-embedding-v3` (向量) + `qwen3-rerank` (精排)；对话可切换 `qwen-plus` / `qwen-max` / `deepseek-r1` 等模型 |
+| 关键词检索 | Elasticsearch 8.13.4 |
+| 向量数据库 | PostgreSQL 16 + pgvector (cosine `<=>` 操作符) |
+| 缓存 | Redis 7 |
+| 文档解析 | Apache Tika 3.1.0 (PDF/DOCX/TXT，含 OCR 扫描件) |
+| 前端 | React 18 + TypeScript + Vite + Ant Design 5 + react-resizable-panels（可拖动分栏） |
+| 评测 | 后端 Java（`EvaluationService`，语义代理 + 规则代理，SSE 流式，结果持久化） |
+
+### 架构
+
+```
+                         ┌─────────────────────────────────────────┐
+                         │            Frontend (React + AntD)      │
+                         │  文档上传 │ 多轮对话 │ 运维指标面板      │
+                         └──────────────────────┬──────────────────┘
+                                                │ POST /api/chat
+                                                ▼
+                         ┌─────────────────────────────────────────┐
+                         │            ChatController                │
+                         └──────────────────────┬──────────────────┘
+                                                ▼
+                         ┌─────────────────────────────────────────┐
+                         │              ChatService                 │
+                         │                                         │
+                         │  1. 加载历史 (PostgreSQL, 最近 N 轮)     │
+                         │  2. RetrievalService.retrieve(query)     │
+                         │       ├─ vector:        VectorSearch     │
+                         │       ├─ hybrid:        ES+Vector ──▶ RRF│
+                         │       └─ hybrid-rerank: RRF ──▶ Rerank   │
+                         │  3. SafetyService.evaluate()  允许/拒答  │
+                         │  4. SemanticCacheService.lookup()        │
+                         │  5. DashScope (qwen-turbo) 生成          │
+                         │  6. PIIRedactionService.redact()         │
+                         │  7. 保存历史 + 采集指标 + 写请求日志     │
+                         └───────┬──────────┬──────────┬───────────┘
+                                 │          │          │
+                        ┌────────▼───┐ ┌────▼─────┐ ┌──▼────────┐
+                        │ PostgreSQL │ │Elasticse.│ │   Redis   │
+                        │  pgvector  │ │  keyword │ │sem. cache │
+                        └────────────┘ └──────────┘ └───────────┘
+
+         入库流程: 前端「文档上传」→ Tika 解析 → 分块 → DashScope embedding
+                     → ES 索引 + pgvector 向量插入
+
+         评测流程: 前端「测评」→ POST /api/evaluation/run (SSE)
+                     → 语料自动入库检查 → 逐题调用 ChatService → 指标打分
+                     → 结果持久化到 evaluation_run 表
+```
+
+**RRF 融合公式：**
+
+```
+RRF_score(d) = Σ 1 / (k + rank_i(d))
+
+其中 k = 60 (默认)，rank_i(d) 为文档 d 在第 i 个结果列表中的 1-based 排名。
+```
+
+同时出现在 ES 与向量结果前列的 chunk 得分自然放大；只出现在单一列表的 chunk 仍会保留贡献。确定性、零额外 API 成本、零额外延迟。
+
+### 项目结构
+
+```
+rag-evaluation-service/
+├── docker-compose.yml              # PostgreSQL(pgvector) + ES + Redis + 后端 + 前端
+├── backend/
+│   ├── pom.xml
+│   └── src/
+│       ├── main/java/com/rag/eval/
+│       │   ├── RAGApplication.java
+│       │   ├── config/             # WebConfig / ES / Redis / pgvector
+│       │   ├── controller/         # Chat / Document / Report / Log / Cache / Config / Evaluation
+│       │   ├── model/              # DTO + JPA 实体（含 RequestLog）
+│       │   ├── repository/         # JPA + JDBC(pgvector 原生 SQL)
+│       │   ├── service/            # 检索/重排/安全/脱敏/缓存/指标/报告/评测/语料
+│       │   └── pipeline/           # 入库管道（解析/分块/索引）
+│       ├── main/resources/
+│       │   ├── application.yml
+│       │   ├── application-vector.yml
+│       │   ├── application-hybrid.yml
+│       │   └── init-db.sql         # pgvector 扩展 + 表结构
+│       └── test/java/.../          # RRF / Safety / PII 单测 + 集成
+├── frontend/                       # React 18 + TS + Vite + AntD
+│   └── src/
+│       ├── App.tsx                 # 三栏可拖动 + 响应式布局
+│       └── components/
+│           ├── DocumentPanel.tsx    # 上传（chunk 配置）+ 检索模式切换
+│           ├── DocumentManagement.tsx # 文档管理页（chunk 预览）
+│           ├── ChatPanel.tsx        # 多轮对话 + 来源展示
+│           ├── ConfigPage.tsx       # 系统配置页（检索/模型/安全/缓存热更新）
+│           ├── MetricsPanel.tsx     # 指标面板 + CSV 下载 + 清缓存
+│           ├── LogPanel.tsx         # 主页日志（自动刷新）
+│           ├── LogManagement.tsx    # 日志管理页（全量明细）
+│           └── EvaluationPage.tsx   # 一键测评页（三模式对比 + 历史回看）
+├── test-docs/                      # 8 份 case study 语料（测评前自动入库的源目录）
+└── evaluation/                     # 历史离线评测脚本（已被内置 UI 评测取代）
+    ├── questions.json              # 22 道中英测试题
+    ├── evaluate.py                 # 评测脚本（5 项质量指标）
+    └── run_all.sh                  # 一键评测驱动
+```
+
+### API 接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `POST` | `/api/chat` | 多轮问答，请求体 `{"question": "...", "sessionId": "...", "mode": "hybrid"}` |
+| `POST` | `/api/chat/stream` | 流式问答（SSE，逐 token 返回 `thinking`/`content`/`done` 事件） |
+| `GET` | `/api/chat/history/{sessionId}` | 查询会话历史 |
+| `DELETE` | `/api/chat/history/{sessionId}` | 删除会话历史 |
+| `POST` | `/api/documents/upload` | 上传文档 (multipart，可带 `splitMode`/`chunkSize`/`overlap`/`delimiter` 参数) |
+| `GET` | `/api/documents` | 文档列表 |
+| `DELETE` | `/api/documents/{id}` | 删除文档 |
+| `GET` | `/api/documents/{id}/chunks` | 文档 chunk 预览 |
+| `GET` | `/api/logs?limit=100` | 请求日志列表（按 id 倒序） |
+| `DELETE` | `/api/logs` | 清空请求日志 |
+| `POST` | `/api/cache/clear` | 清空语义缓存 |
+| `GET` | `/api/report/csv` | 下载运维指标 CSV |
+| `GET` | `/api/report/summary` | 运维指标汇总（JSON，主页指标面板轮询） |
+| `GET` | `/api/config` | 读取运行时配置（检索/模型/安全/缓存） |
+| `PUT` | `/api/config` | 更新运行时配置，热更新无需重启 |
+| `PUT` | `/api/config/mode` | 快速切换检索模式 |
+| `PUT` | `/api/config/apikey` | 设置/清除 API Key（`{"apiKey":"sk-..."}`，空值清除并回退环境变量） |
+| `GET` | `/api/evaluation/questions` | 读取评测测试集（22 题） |
+| `POST` | `/api/evaluation/run` | 一键评测（SSE，实时进度 + 逐题结果 + 指标汇总） |
+| `GET` | `/api/evaluation/history` | 历史测评列表（按时间倒序） |
+| `GET` | `/api/evaluation/history/{id}` | 某次测评的完整报告 |
+
+**问答示例：**
+
+```bash
+curl -X POST localhost:8080/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"什么是 RAG？","sessionId":"test-1","mode":"hybrid"}'
+```
+
+响应示例：
+
+```json
+{
+  "content": "RAG 即检索增强生成……",
+  "retrievalMode": "hybrid",
+  "sources": [
+    { "fileName": "intro.pdf", "snippet": "...", "score": 0.0325, "sourceType": "digital" }
+  ],
+  "refusal": false,
+  "refusalReason": null
+}
+```
+
+### 检索模式与 RRF
+
+三种模式，可在前端「检索模式」下拉中切换（也支持请求体 `mode` 字段指定）：
+
+| 模式 | 行为 |
+|---|---|
+| `vector` | 仅 pgvector 向量语义检索 |
+| `hybrid` | ES 关键词 + pgvector 向量并行召回 → RRF 融合（无重排） |
+| `hybrid-rerank` | ES + 向量 → RRF 融合出候选集 → DashScope `qwen3-rerank` 精排取 topK |
+
+关键参数（可在前端「系统配置」页热更新）：
+
+```yaml
+retrieval:
+  mode: hybrid              # "vector" | "hybrid" | "hybrid-rerank"
+  top-k: 5
+  rrf-k: 60
+  recall-size-multiplier: 3      # 每路召回 = topK * 3
+  rerank-candidates: 20          # hybrid-rerank 时 RRF 先保留的候选数
+  similarity-threshold: 0.4
+```
+
+### PDF Chunk 策略
+
+针对 case study 的三种语料类型分别处理：
+
+| 类型 | 处理方式 |
+|---|---|
+| **数字原生 PDF/DOCX** | Tika 提取文本 → 章节检测（`^第[一二三四五六七八九十百]+章`）→ 按 500 字符分块、50 字符重叠，携带 `{chapter, section, chunk_index}` 元数据 |
+| **扫描版 PDF** | Tika 内置 OCR 提取 → 按页边界切分（无结构化标题）→ 更大分块补偿 OCR 噪音，标记 `source_type="scanned"` |
+| **双语混合文档** | 不做翻译，保留原文，靠 `text-embedding-v3` 多语言向量天然跨语言检索 |
+
+chunk 元数据（同时写入 ES `_source` 与 pgvector `vector_chunks` 表）：
+
+```json
+{
+  "chunk_id": "uuid",
+  "file_name": "compliance-guide-v3.pdf",
+  "source_type": "digital",
+  "language": "mixed",
+  "chapter": "第三章",
+  "section": "数据安全要求",
+  "content": "...",
+  "chunk_index": 12,
+  "token_count": 480
+}
+```
+
+分块参数（切分方式 `size`/`delimiter`、chunk 大小、overlap、分隔符）支持在上传时通过接口或前端配置，`DocumentMeta` 持久化记录每次入库的参数；文档管理页可查看每个文档的 chunk 预览（`GET /api/documents/{id}/chunks`）。
 
 ---
 
