@@ -6,7 +6,7 @@
 
 ## 1. request_log 表字段
 
-以每次问答请求为一行，由 `ChatService.logRequest()` 写入 PostgreSQL。前端入口：主页「日志」面板（每 5 秒刷新）+「日志详情」页（全量明细）。
+以每次问答请求为一行，由 `ChatService.logRequest()` 写入 PostgreSQL。前端入口：主页「日志」面板（每 5 秒刷新）+「日志管理」页（全量明细）。
 
 | 字段（JSON） | 类型 | 说明 |
 |---|---|---|
