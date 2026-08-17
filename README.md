@@ -11,14 +11,18 @@
 - [界面预览](#界面预览)
 - [核心特性](#核心特性)
 - [技术设计](#技术设计)
+  - [技术栈](#技术栈)
+  - [架构](#架构)
+  - [检索模式与 RRF](#检索模式与-rrf)
+  - [PDF Chunk 策略](#pdf-chunk-策略)
+  - [项目结构](#项目结构)
+  - [API 接口](#api-接口)
 - [快速开始](#快速开始)
   - [0. 前置条件](#0-前置条件)
   - [1. 配置 API Key](#1-配置-api-key)
   - [2. 一键启动](#2-一键启动)
   - [3. 语料入库](#3-语料入库)
   - [4. 访问前端](#4-访问前端)
-- [检索模式与 RRF](#检索模式与-rrf)
-- [PDF Chunk 策略](#pdf-chunk-策略)
 - [评测](#评测)
 - [运维指标报告](#运维指标报告)
 - [请求日志](#请求日志)
@@ -136,6 +140,56 @@ RRF_score(d) = Σ 1 / (k + rank_i(d))
 ```
 
 同时出现在 ES 与向量结果前列的 chunk 得分自然放大；只出现在单一列表的 chunk 仍会保留贡献。确定性、零额外 API 成本、零额外延迟。
+
+### 检索模式与 RRF
+
+三种模式，可在前端「检索模式」下拉中切换（也支持请求体 `mode` 字段指定）：
+
+| 模式 | 行为 |
+|---|---|
+| `vector` | 仅 pgvector 向量语义检索 |
+| `hybrid` | ES 关键词 + pgvector 向量并行召回 → RRF 融合（无重排） |
+| `hybrid-rerank` | ES + 向量 → RRF 融合出候选集 → DashScope `qwen3-rerank` 精排取 topK |
+
+关键参数（可在前端「系统配置」页热更新）：
+
+```yaml
+retrieval:
+  mode: hybrid              # "vector" | "hybrid" | "hybrid-rerank"
+  top-k: 5
+  rrf-k: 60
+  recall-size-multiplier: 3      # 每路召回 = topK * 3
+  rerank-candidates: 20          # hybrid-rerank 时 RRF 先保留的候选数
+  similarity-threshold: 0.4
+```
+
+### PDF Chunk 策略
+
+针对 case study 的三种语料类型分别处理：
+
+| 类型 | 处理方式 |
+|---|---|
+| **数字原生 PDF/DOCX** | Tika 提取文本 → 章节检测（`^第[一二三四五六七八九十百]+章`）→ 按 500 字符分块、50 字符重叠，携带 `{chapter, section, chunk_index}` 元数据 |
+| **扫描版 PDF** | Tika 内置 OCR 提取 → 按页边界切分（无结构化标题）→ 更大分块补偿 OCR 噪音，标记 `source_type="scanned"` |
+| **双语混合文档** | 不做翻译，保留原文，靠 `text-embedding-v3` 多语言向量天然跨语言检索 |
+
+chunk 元数据（同时写入 ES `_source` 与 pgvector `vector_chunks` 表）：
+
+```json
+{
+  "chunk_id": "uuid",
+  "file_name": "compliance-guide-v3.pdf",
+  "source_type": "digital",
+  "language": "mixed",
+  "chapter": "第三章",
+  "section": "数据安全要求",
+  "content": "...",
+  "chunk_index": 12,
+  "token_count": 480
+}
+```
+
+分块参数（切分方式 `size`/`delimiter`、chunk 大小、overlap、分隔符）支持在上传时通过接口或前端配置，`DocumentMeta` 持久化记录每次入库的参数；文档管理页可查看每个文档的 chunk 预览（`GET /api/documents/{id}/chunks`）。
 
 ### 项目结构
 
@@ -280,60 +334,6 @@ docker-compose ps
 ### 4. 访问前端
 
 浏览器打开 `http://localhost:3000`。前端已容器化（nginx 托管静态产物 + 反代 `/api` 到后端），无需单独启动。
-
----
-
-## 检索模式与 RRF
-
-三种模式，可在前端「检索模式」下拉中切换（也支持请求体 `mode` 字段指定）：
-
-| 模式 | 行为 |
-|---|---|
-| `vector` | 仅 pgvector 向量语义检索 |
-| `hybrid` | ES 关键词 + pgvector 向量并行召回 → RRF 融合（无重排） |
-| `hybrid-rerank` | ES + 向量 → RRF 融合出候选集 → DashScope `qwen3-rerank` 精排取 topK |
-
-关键参数（可在前端「系统配置」页热更新）：
-
-```yaml
-retrieval:
-  mode: hybrid              # "vector" | "hybrid" | "hybrid-rerank"
-  top-k: 5
-  rrf-k: 60
-  recall-size-multiplier: 3      # 每路召回 = topK * 3
-  rerank-candidates: 20          # hybrid-rerank 时 RRF 先保留的候选数
-  similarity-threshold: 0.4
-```
-
----
-
-## PDF Chunk 策略
-
-针对 case study 的三种语料类型分别处理：
-
-| 类型 | 处理方式 |
-|---|---|
-| **数字原生 PDF/DOCX** | Tika 提取文本 → 章节检测（`^第[一二三四五六七八九十百]+章`）→ 按 500 字符分块、50 字符重叠，携带 `{chapter, section, chunk_index}` 元数据 |
-| **扫描版 PDF** | Tika 内置 OCR 提取 → 按页边界切分（无结构化标题）→ 更大分块补偿 OCR 噪音，标记 `source_type="scanned"` |
-| **双语混合文档** | 不做翻译，保留原文，靠 `text-embedding-v3` 多语言向量天然跨语言检索 |
-
-chunk 元数据（同时写入 ES `_source` 与 pgvector `vector_chunks` 表）：
-
-```json
-{
-  "chunk_id": "uuid",
-  "file_name": "compliance-guide-v3.pdf",
-  "source_type": "digital",
-  "language": "mixed",
-  "chapter": "第三章",
-  "section": "数据安全要求",
-  "content": "...",
-  "chunk_index": 12,
-  "token_count": 480
-}
-```
-
-分块参数（切分方式 `size`/`delimiter`、chunk 大小、overlap、分隔符）支持在上传时通过接口或前端配置，`DocumentMeta` 持久化记录每次入库的参数；文档管理页可查看每个文档的 chunk 预览（`GET /api/documents/{id}/chunks`）。
 
 ---
 
