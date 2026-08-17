@@ -10,16 +10,13 @@
 
 - [界面预览](#界面预览)
 - [核心特性](#核心特性)
-- [技术栈](#技术栈)
-- [架构](#架构)
-- [项目结构](#项目结构)
+- [技术设计](#技术设计)
 - [快速开始](#快速开始)
   - [0. 前置条件](#0-前置条件)
   - [1. 配置 API Key](#1-配置-api-key)
   - [2. 一键启动](#2-一键启动)
   - [3. 语料入库](#3-语料入库)
   - [4. 访问前端](#4-访问前端)
-- [API 接口](#api-接口)
 - [检索模式与 RRF](#检索模式与-rrf)
 - [PDF Chunk 策略](#pdf-chunk-策略)
 - [评测](#评测)
@@ -74,7 +71,9 @@
 
 ---
 
-## 技术栈
+## 技术设计
+
+### 技术栈
 
 | 层 | 技术 |
 |---|---|
@@ -87,9 +86,7 @@
 | 前端 | React 18 + TypeScript + Vite + Ant Design 5 + react-resizable-panels（可拖动分栏） |
 | 评测 | 后端 Java（`EvaluationService`，语义代理 + 规则代理，SSE 流式，结果持久化） |
 
----
-
-## 架构
+### 架构
 
 ```
                          ┌─────────────────────────────────────────┐
@@ -140,9 +137,7 @@ RRF_score(d) = Σ 1 / (k + rank_i(d))
 
 同时出现在 ES 与向量结果前列的 chunk 得分自然放大；只出现在单一列表的 chunk 仍会保留贡献。确定性、零额外 API 成本、零额外延迟。
 
----
-
-## 项目结构
+### 项目结构
 
 ```
 rag-evaluation-service/
@@ -181,6 +176,54 @@ rag-evaluation-service/
     ├── questions.json              # 22 道中英测试题
     ├── evaluate.py                 # 评测脚本（5 项质量指标）
     └── run_all.sh                  # 一键评测驱动
+```
+
+### API 接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `POST` | `/api/chat` | 多轮问答，请求体 `{"question": "...", "sessionId": "...", "mode": "hybrid"}` |
+| `POST` | `/api/chat/stream` | 流式问答（SSE，逐 token 返回 `thinking`/`content`/`done` 事件） |
+| `GET` | `/api/chat/history/{sessionId}` | 查询会话历史 |
+| `DELETE` | `/api/chat/history/{sessionId}` | 删除会话历史 |
+| `POST` | `/api/documents/upload` | 上传文档 (multipart，可带 `splitMode`/`chunkSize`/`overlap`/`delimiter` 参数) |
+| `GET` | `/api/documents` | 文档列表 |
+| `DELETE` | `/api/documents/{id}` | 删除文档 |
+| `GET` | `/api/documents/{id}/chunks` | 文档 chunk 预览 |
+| `GET` | `/api/logs?limit=100` | 请求日志列表（按 id 倒序） |
+| `DELETE` | `/api/logs` | 清空请求日志 |
+| `POST` | `/api/cache/clear` | 清空语义缓存 |
+| `GET` | `/api/report/csv` | 下载运维指标 CSV |
+| `GET` | `/api/report/summary` | 运维指标汇总（JSON，主页指标面板轮询） |
+| `GET` | `/api/config` | 读取运行时配置（检索/模型/安全/缓存） |
+| `PUT` | `/api/config` | 更新运行时配置，热更新无需重启 |
+| `PUT` | `/api/config/mode` | 快速切换检索模式 |
+| `PUT` | `/api/config/apikey` | 设置/清除 API Key（`{"apiKey":"sk-..."}`，空值清除并回退环境变量） |
+| `GET` | `/api/evaluation/questions` | 读取评测测试集（22 题） |
+| `POST` | `/api/evaluation/run` | 一键评测（SSE，实时进度 + 逐题结果 + 指标汇总） |
+| `GET` | `/api/evaluation/history` | 历史测评列表（按时间倒序） |
+| `GET` | `/api/evaluation/history/{id}` | 某次测评的完整报告 |
+
+**问答示例：**
+
+```bash
+curl -X POST localhost:8080/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"什么是 RAG？","sessionId":"test-1","mode":"hybrid"}'
+```
+
+响应示例：
+
+```json
+{
+  "content": "RAG 即检索增强生成……",
+  "retrievalMode": "hybrid",
+  "sources": [
+    { "fileName": "intro.pdf", "snippet": "...", "score": 0.0325, "sourceType": "digital" }
+  ],
+  "refusal": false,
+  "refusalReason": null
+}
 ```
 
 ---
@@ -237,56 +280,6 @@ docker-compose ps
 ### 4. 访问前端
 
 浏览器打开 `http://localhost:3000`。前端已容器化（nginx 托管静态产物 + 反代 `/api` 到后端），无需单独启动。
-
----
-
-## API 接口
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `POST` | `/api/chat` | 多轮问答，请求体 `{"question": "...", "sessionId": "...", "mode": "hybrid"}` |
-| `POST` | `/api/chat/stream` | 流式问答（SSE，逐 token 返回 `thinking`/`content`/`done` 事件） |
-| `GET` | `/api/chat/history/{sessionId}` | 查询会话历史 |
-| `DELETE` | `/api/chat/history/{sessionId}` | 删除会话历史 |
-| `POST` | `/api/documents/upload` | 上传文档 (multipart，可带 `splitMode`/`chunkSize`/`overlap`/`delimiter` 参数) |
-| `GET` | `/api/documents` | 文档列表 |
-| `DELETE` | `/api/documents/{id}` | 删除文档 |
-| `GET` | `/api/documents/{id}/chunks` | 文档 chunk 预览 |
-| `GET` | `/api/logs?limit=100` | 请求日志列表（按 id 倒序） |
-| `DELETE` | `/api/logs` | 清空请求日志 |
-| `POST` | `/api/cache/clear` | 清空语义缓存 |
-| `GET` | `/api/report/csv` | 下载运维指标 CSV |
-| `GET` | `/api/report/summary` | 运维指标汇总（JSON，主页指标面板轮询） |
-| `GET` | `/api/config` | 读取运行时配置（检索/模型/安全/缓存） |
-| `PUT` | `/api/config` | 更新运行时配置，热更新无需重启 |
-| `PUT` | `/api/config/mode` | 快速切换检索模式 |
-| `PUT` | `/api/config/apikey` | 设置/清除 API Key（`{"apiKey":"sk-..."}`，空值清除并回退环境变量） |
-| `GET` | `/api/evaluation/questions` | 读取评测测试集（22 题） |
-| `POST` | `/api/evaluation/run` | 一键评测（SSE，实时进度 + 逐题结果 + 指标汇总） |
-| `GET` | `/api/evaluation/history` | 历史测评列表（按时间倒序） |
-| `GET` | `/api/evaluation/history/{id}` | 某次测评的完整报告 |
-
-**问答示例：**
-
-```bash
-curl -X POST localhost:8080/api/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"question":"什么是 RAG？","sessionId":"test-1","mode":"hybrid"}'
-```
-
-响应示例：
-
-```json
-{
-  "content": "RAG 即检索增强生成……",
-  "retrievalMode": "hybrid",
-  "sources": [
-    { "fileName": "intro.pdf", "snippet": "...", "score": 0.0325, "sourceType": "digital" }
-  ],
-  "refusal": false,
-  "refusalReason": null
-}
-```
 
 ---
 
@@ -436,7 +429,7 @@ CSV 包含逐请求明细（检索/生成/总延迟、prompt/completion token、
 | [成本估算与模型选型](docs/COST_ESTIMATION.md) | DashScope 三模型选型理由与单次/月度成本估算 |
 | [日志字段字典](docs/LOG_FIELD_DICTIONARY.md) | `request_log` 表与指标 CSV 逐字段说明 + 样例 |
 | [评测报告](docs/EVALUATION_REPORT.md) | 22 题测试集、5 项指标、三模式对比实测 |
-| [问题诊断报告](docs/ISSUE_DIAGNOSIS.md) | 4 个已修复问题的证据 + 前后量化对比 |
+| [问题诊断报告](docs/ISSUE_DIAGNOSIS.md) | 5 个已修复问题的证据 + 前后量化对比 |
 | [问题诊断指南](docs/TROUBLESHOOTING.md) | 按症状排查 + 定位命令 |
 
 ---
