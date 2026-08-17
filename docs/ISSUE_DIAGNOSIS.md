@@ -34,7 +34,7 @@
 
 **根因**：`SafetyService.Decision.REFUSE_OUT_OF_SCOPE` 已定义但 `evaluate()` 从不返回该分支，且 `enable-out-of-scope-check=false`。越界问题越过置信度闸门后被当作可答，生成了既无来源又无引导的短答案。
 
-**修复**：实现第三级闸门——当 `min-similarity ≤ maxScore < out-of-scope-threshold`（0.4 ≤ s < 0.55）时返回 `REFUSE_OUT_OF_SCOPE`，并默认 `enable-out-of-scope-check=true`。
+**修复**：实现越界闸门——当 `min-similarity ≤ maxScore < out-of-scope-threshold`（0.4 ≤ s < 0.55）时返回 `REFUSE_OUT_OF_SCOPE`，并默认 `enable-out-of-scope-check=true`。
 
 **前后对比**：整体 **Answer Compliance 0.532 → 0.814（+53%）**，越界问题由短答案（AC=0.3）变为带引导拒答（AC=1.0）。当前对齐后的测试集全部命中语料、无越界题，闸门作为真实场景的兜底保留。
 
